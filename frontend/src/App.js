@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 /* ============================================================
    SOCKET
    ============================================================ */
-const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
+const SERVER_URL = 'https://constellation-backend-4d88.onrender.com';
 const socket = io(SERVER_URL, {
   autoConnect: true,
   reconnection: true,
