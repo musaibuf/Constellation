@@ -864,16 +864,56 @@ function ProjectorView() {
       const dt = Math.min(lastFrameTsRef.current ? (ts - lastFrameTsRef.current) / 1000 : 0.016, 0.05);
       lastFrameTsRef.current = ts;
 
-      // Gathering phase (joining + self-paced quiz): nodes roam freely and
-      // bounce off the screen edges and the top bar.
+      // Gathering phase (joining + self-paced quiz): nodes roam freely,
+      // gently repel each other, and drift back toward center over time so
+      // they never permanently settle along an edge or in a corner.
       if (stateRef.current === 'idle' || stateRef.current === 'populating' || stateRef.current === 'quiz_open') {
         const top = TOP_BAR_HEIGHT + 20;
-        nodesRef.current.forEach((n) => {
+        const nodes = nodesRef.current;
+        const centerX = w / 2, centerY = (h + top) / 2;
+
+        nodes.forEach((n) => {
           if (n.wanderVx === undefined) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 55 + Math.random() * 35;
+            const speed = 40 + Math.random() * 30;
             n.wanderVx = Math.cos(angle) * speed;
             n.wanderVy = Math.sin(angle) * speed;
+          }
+          // Continuous small jitter — without this a node's path is a
+          // perfectly straight bounce forever, and enough random initial
+          // angles end up nearly edge-parallel, which is why older nodes
+          // (more elapsed time) were the ones ending up stuck on the walls.
+          n.wanderVx += (Math.random() - 0.5) * 30 * dt;
+          n.wanderVy += (Math.random() - 0.5) * 30 * dt;
+          // Weak pull back toward the middle of the screen.
+          n.wanderVx += (centerX - n.x) * 0.06 * dt;
+          n.wanderVy += (centerY - n.y) * 0.06 * dt;
+        });
+
+        // Mild mutual repulsion so nodes spread out instead of overlapping —
+        // cheap even at a few hundred nodes since it's a plain distance check.
+        for (let i = 0; i < nodes.length; i++) {
+          for (let j = i + 1; j < nodes.length; j++) {
+            const a = nodes[i], b = nodes[j];
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const distSq = dx * dx + dy * dy;
+            const minDist = 46;
+            if (distSq < minDist * minDist && distSq > 0.01) {
+              const dist = Math.sqrt(distSq);
+              const push = (minDist - dist) * 1.6 * dt;
+              const nx = dx / dist, ny = dy / dist;
+              a.wanderVx -= nx * push; a.wanderVy -= ny * push;
+              b.wanderVx += nx * push; b.wanderVy += ny * push;
+            }
+          }
+        }
+
+        nodes.forEach((n) => {
+          const speedNow = Math.hypot(n.wanderVx, n.wanderVy);
+          const maxSpeed = 85;
+          if (speedNow > maxSpeed) {
+            n.wanderVx = (n.wanderVx / speedNow) * maxSpeed;
+            n.wanderVy = (n.wanderVy / speedNow) * maxSpeed;
           }
           n.x += n.wanderVx * dt;
           n.y += n.wanderVy * dt;
@@ -1040,18 +1080,23 @@ function ProjectorView() {
 
   function applyTeamPositions(teamList) {
     const { w, h } = dims.current;
+    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // sunflower-pattern spacing
     teamList.forEach((team, i) => {
       const rect = teamBlockRect(i, w, h);
       const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2 + 10;
-      const clusterR = Math.min(rect.w, rect.h) * 0.22;
+      const clusterR = Math.min(rect.w, rect.h) * 0.36;
       team.centre = { x: cx, y: cy };
       const n = team.memberIds.length || 1;
       team.memberIds.forEach((pid, idx) => {
         const node = nodesRef.current.find((nn) => nn.id === pid);
         if (!node) return;
-        const ringR = idx % 2 === 0 ? clusterR * 0.55 : clusterR;
-        const a = (idx / n) * Math.PI * 2;
-        node.teamTarget = { x: cx + Math.cos(a) * ringR, y: cy + Math.sin(a) * ringR };
+        // Sunflower distribution: sqrt radial spacing keeps density even
+        // across the whole disc instead of cramming everyone onto 1-2 thin
+        // rings, so names have real breathing room between them.
+        const t = (idx + 0.5) / n;
+        const r = clusterR * Math.sqrt(t);
+        const angle = idx * GOLDEN_ANGLE;
+        node.teamTarget = { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
         node.colour = team.colour; node.radius = 6.5;
       });
     });
