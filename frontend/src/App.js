@@ -1036,6 +1036,10 @@ function ProjectorView() {
       }
       setJigsawStartedAt(state.session.jigsawStartedAt);
       setJigsawClockRunning(state.session.jigsawClockRunning);
+      if (state.jigsaw) {
+        setJigsawPieces(state.jigsaw.pieces);
+        setJigsawTeams(state.jigsaw.teams);
+      }
     });
 
     socket.on('participants_update', (participants) => {
@@ -1283,6 +1287,7 @@ function FacilitatorView() {
       setSubmittedCount(computeSubmitted(state));
       setJigsawStartedAt(state.session.jigsawStartedAt);
       setJigsawClockRunning(state.session.jigsawClockRunning);
+      if (state.jigsaw) setJigsawTeams(state.jigsaw.teams);
     });
     socket.on('participants_update', (p) => { setParticipants(p); setJoinedCount(Object.keys(p).length); });
     socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
