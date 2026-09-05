@@ -247,7 +247,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join', ({ id, name }) => {
-    if (!name || name.trim().length === 0 || name.length > 30) {
+    if (!name || name.trim().length === 0 || name.length > 20) {
       socket.emit('join_error', { message: 'Invalid name' });
       return;
     }

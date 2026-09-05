@@ -302,7 +302,7 @@ function ParticipantView() {
   function handleJoin(e) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > 30) { setJoinError('Enter your name.'); return; }
+    if (trimmed.length === 0 || trimmed.length > 20) { setJoinError('Enter 1-20 characters.'); return; }
     setJoinError('');
     socket.emit('join', { id: participantId, name: trimmed });
   }
@@ -346,8 +346,8 @@ function ParticipantView() {
           <form onSubmit={handleJoin} className="lc-fadein" style={{ width: '100%', textAlign: 'center' }}>
             <span className="lc-badge" style={{ marginBottom: 18, display: 'inline-flex' }}>✦ Constellation</span>
             <h1 className="lc-h1" style={{ marginBottom: 10 }}>Join the room</h1>
-            <p className="lc-sub" style={{ marginBottom: 26 }}>Enter your full name</p>
-            <input className="lc-input" value={name} maxLength={30} placeholder="e.g. Ahmed Khan"
+            <p className="lc-sub" style={{ marginBottom: 26 }}>First name plus last initial</p>
+            <input className="lc-input" value={name} maxLength={20} placeholder="e.g. Ahmed K"
               onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
             {joinError && <p style={{ color: '#ff6b6b', fontSize: 14, marginTop: 10 }}>{joinError}</p>}
             <button className="lc-btn lc-btn-primary" type="submit" style={{ width: '100%', marginTop: 18 }}>Join now</button>
@@ -406,9 +406,15 @@ function ParticipantView() {
             <p className="lc-faint lc-fadein" style={{ marginTop: 0 }}>Your team is</p>
             <h1 className="lc-h1 lc-pop" style={{ color: team.colour, margin: '8px 0 26px' }}>Team {team.number}</h1>
             <div className="lc-team-swatch lc-pop" style={{ background: `radial-gradient(circle at 35% 30%, #fff2, ${team.colour})`, color: team.colour, margin: '0 auto 30px' }} />
-            <p className="lc-sub" style={{ marginBottom: 14 }}>Your {teammates.length} teammates</p>
+            <p className="lc-sub" style={{ marginBottom: 14 }}>
+              {teammates.length > 0 ? `Your ${teammates.length} teammates` : 'Your teammates'}
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {teammates.map((n, i) => <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 55}ms` }}>{n}</div>)}
+              {teammates.length > 0 ? (
+                teammates.map((n, i) => <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 55}ms` }}>{n}</div>)
+              ) : (
+                <div className="lc-teammate" style={{ opacity: 0.6, fontStyle: 'italic' }}>No one else on your team yet</div>
+              )}
             </div>
             <p className="lc-faint">Keep this screen. It's how you find your group.</p>
             <div className="lc-fadein" style={{ marginTop: 28 }}>
@@ -733,9 +739,26 @@ function ProjectorView() {
   }
 
   function teamForce(alpha) {
+    // Pull is much stronger once teams are formed, so the tight per-team
+    // cluster wins decisively against the global repulsion below.
+    const pull = stateRef.current === 'teams_formed' ? 0.24 : 0.09;
     nodesRef.current.forEach((n) => {
-      if (n.teamTarget) { n.vx += (n.teamTarget.x - n.x) * alpha * 0.09; n.vy += (n.teamTarget.y - n.y) * alpha * 0.09; }
+      if (n.teamTarget) { n.vx += (n.teamTarget.x - n.x) * alpha * pull; n.vy += (n.teamTarget.y - n.y) * alpha * pull; }
     });
+  }
+
+  // Global repulsion is tuned for nodes roaming the full screen — once
+  // teams are packed into small boxes it overpowers the pull to center
+  // and shoves nodes toward the block edges. Weaken it for that phase.
+  function updatePhysicsForPhase() {
+    if (!simRef.current) return;
+    if (stateRef.current === 'teams_formed') {
+      simRef.current.force('charge', d3.forceManyBody().strength(-3));
+      simRef.current.force('collide', d3.forceCollide().radius(7));
+    } else {
+      simRef.current.force('charge', d3.forceManyBody().strength(-42));
+      simRef.current.force('collide', d3.forceCollide().radius(14));
+    }
   }
 
   useEffect(() => {
@@ -936,7 +959,11 @@ function ProjectorView() {
         state.answers.filter((a) => a.participantId === p.id).forEach((a) => { node.answerVector[a.questionIndex] = a.optionIndex; });
       });
       recomputePersistentEdges();
-      if (state.session.state === 'teams_formed') applyTeamPositions(state.teams);
+      if (state.session.state === 'teams_formed') {
+        stateRef.current = 'teams_formed';
+        updatePhysicsForPhase();
+        applyTeamPositions(state.teams);
+      }
       setJigsawStartedAt(state.session.jigsawStartedAt);
       setJigsawClockRunning(state.session.jigsawClockRunning);
     });
@@ -972,7 +999,11 @@ function ProjectorView() {
       setTeams(teams); setSessionState('teams_formed'); setShowFormingBanner(true);
       nodesRef.current.forEach((n) => { n.teamTarget = null; n.vx += (Math.random() - 0.5) * 34; n.vy += (Math.random() - 0.5) * 34; });
       if (simRef.current) simRef.current.alpha(1).restart();
-      setTimeout(() => applyTeamPositions(teams), 1400);
+      setTimeout(() => {
+        stateRef.current = 'teams_formed';
+        updatePhysicsForPhase();
+        applyTeamPositions(teams);
+      }, 1400);
       setTimeout(() => setShowFormingBanner(false), 4200);
     });
 
@@ -994,6 +1025,8 @@ function ProjectorView() {
       nodesRef.current = []; persistentEdgesRef.current = []; flashEdgesRef.current = [];
       setTeams([]); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
       setActivity('constellation'); setJigsawPieces([]); setJigsawTeams([]);
+      stateRef.current = 'idle';
+      updatePhysicsForPhase();
       if (simRef.current) { simRef.current.nodes([]); simRef.current.alpha(1).restart(); }
     });
 
@@ -1010,7 +1043,7 @@ function ProjectorView() {
     teamList.forEach((team, i) => {
       const rect = teamBlockRect(i, w, h);
       const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2 + 10;
-      const clusterR = Math.min(rect.w, rect.h) * 0.32;
+      const clusterR = Math.min(rect.w, rect.h) * 0.22;
       team.centre = { x: cx, y: cy };
       const n = team.memberIds.length || 1;
       team.memberIds.forEach((pid, idx) => {
