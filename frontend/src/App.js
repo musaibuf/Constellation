@@ -631,14 +631,25 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Grid cell for team block i (0-9), 5 columns x 2 rows.
+// Shrinks text with an ellipsis until it fits maxWidth — protects the block
+// layout from full names (first + middle + last) overflowing the card.
+function truncateToWidth(ctx, text, maxWidth) {
+  if (!text) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+  return t + '…';
+}
+
+// Grid cell for team block i (0-9), 5 columns x 2 rows, offset below the top bar.
 function teamBlockRect(i, w, h) {
+  const topOffset = TOP_BAR_HEIGHT + 16;
   const margin = Math.max(20, w * 0.015);
   const gutter = 14;
   const cellW = (w - margin * 2 - gutter * 4) / 5;
-  const cellH = (h - margin * 2 - gutter) / 2;
+  const cellH = (h - topOffset - margin - gutter) / 2;
   const col = i % 5, row = Math.floor(i / 5);
-  return { x: margin + col * (cellW + gutter), y: margin + row * (cellH + gutter), w: cellW, h: cellH };
+  return { x: margin + col * (cellW + gutter), y: topOffset + row * (cellH + gutter), w: cellW, h: cellH };
 }
 
 function ProjectorView() {
@@ -802,10 +813,20 @@ function ProjectorView() {
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
           ctx.shadowColor = n.colour; ctx.shadowBlur = 9;
           ctx.fillStyle = n.colour; ctx.fill(); ctx.shadowBlur = 0;
+
           ctx.font = "500 10px Inter, system-ui, sans-serif";
           ctx.fillStyle = `rgba(245,240,232,${0.7 * entry})`;
-          ctx.textAlign = 'left';
-          ctx.fillText(n.name || '', n.x + r + 4, n.y + 3);
+          const boxCenterX = rect.x + rect.w / 2;
+          const pad = 8;
+          if (n.x < boxCenterX) {
+            ctx.textAlign = 'left';
+            const maxWidth = (rect.x + rect.w - pad) - (n.x + r + 4);
+            ctx.fillText(truncateToWidth(ctx, n.name, Math.max(24, maxWidth)), n.x + r + 4, n.y + 3);
+          } else {
+            ctx.textAlign = 'right';
+            const maxWidth = (n.x - r - 4) - (rect.x + pad);
+            ctx.fillText(truncateToWidth(ctx, n.name, Math.max(24, maxWidth)), n.x - r - 4, n.y + 3);
+          }
         });
       });
     }
@@ -1062,7 +1083,7 @@ function ProjectorView() {
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
       <QrToggle joinUrl={joinUrl} />
 
-      {(sessionState === 'idle' || sessionState === 'populating' || sessionState === 'quiz_open') && (
+      {(sessionState === 'idle' || sessionState === 'populating' || sessionState === 'quiz_open' || sessionState === 'teams_formed') && (
         <div className="lc-fadein" style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px',
@@ -1073,7 +1094,7 @@ function ProjectorView() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
             <img src="/logo.png" alt="Carnelian" style={{ height: 38 }} />
             <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '.01em', color: '#f5f0e8' }}>
-              Constellation
+              {sessionState === 'teams_formed' ? 'Team Formation' : 'Constellation'}
             </span>
           </div>
           <div style={{ flex: 1, textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15 }}>
@@ -1081,6 +1102,11 @@ function ProjectorView() {
               <>
                 <span style={{ color: '#e8571a' }}>{submittedCount}</span>
                 <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>submitted</span>
+              </>
+            ) : sessionState === 'teams_formed' ? (
+              <>
+                <span style={{ color: '#e8571a' }}>{teams.length}</span>
+                <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>teams formed</span>
               </>
             ) : (
               <>
@@ -1101,11 +1127,8 @@ function ProjectorView() {
           <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>Ten Teams</div>
         </div>
       )}
-
-      {sessionState === 'teams_formed' && !showFormingBanner && (
-        <img src="/logo.png" alt="Carnelian" style={{ position: 'absolute', top: 18, left: 20, height: 30, opacity: .6 }} />
-      )}
     </div>
+
   );
 }
 
