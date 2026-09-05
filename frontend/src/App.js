@@ -880,7 +880,6 @@ function ProjectorView() {
       if (isGathering || isScattering) {
         const top = TOP_BAR_HEIGHT + 20;
         const nodes = nodesRef.current;
-        const centerX = w / 2, centerY = (h + top) / 2;
 
         nodes.forEach((n) => {
           if (n.wanderVx === undefined) {
@@ -893,11 +892,10 @@ function ProjectorView() {
           // perfectly straight bounce forever, and enough random initial
           // angles end up nearly edge-parallel, which is why older nodes
           // (more elapsed time) were the ones ending up stuck on the walls.
+          // No pull toward center — nodes are free to roam the whole
+          // screen, edges and corners included.
           n.wanderVx += (Math.random() - 0.5) * 30 * dt;
           n.wanderVy += (Math.random() - 0.5) * 30 * dt;
-          // Weak pull back toward the middle of the screen.
-          n.wanderVx += (centerX - n.x) * 0.06 * dt;
-          n.wanderVy += (centerY - n.y) * 0.06 * dt;
         });
 
         // Mild mutual repulsion so nodes spread out instead of overlapping —
@@ -919,9 +917,17 @@ function ProjectorView() {
         }
 
         nodes.forEach((n) => {
+          // Light damping so jitter accumulating over many minutes doesn't
+          // let speed drift upward or downward without bound, then hold it
+          // to a sane cruising range.
+          n.wanderVx *= Math.pow(0.4, dt);
+          n.wanderVy *= Math.pow(0.4, dt);
           const speedNow = Math.hypot(n.wanderVx, n.wanderVy);
-          const maxSpeed = 85;
-          if (speedNow > maxSpeed) {
+          const minSpeed = 28, maxSpeed = 85;
+          if (speedNow > 0.01 && speedNow < minSpeed) {
+            const boost = minSpeed / speedNow;
+            n.wanderVx *= boost; n.wanderVy *= boost;
+          } else if (speedNow > maxSpeed) {
             n.wanderVx = (n.wanderVx / speedNow) * maxSpeed;
             n.wanderVy = (n.wanderVy / speedNow) * maxSpeed;
           }
