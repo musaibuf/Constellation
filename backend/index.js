@@ -56,9 +56,8 @@ const JIGSAW_CONTENT = [
 // ============================================================
 let session = {
   activity: 'constellation',   // 'constellation' | 'jigsaw'
-  state: 'idle',               // constellation: idle|populating|question|clustered|split|final
+  state: 'idle',               // constellation: idle|populating|quiz_open|teams_formed
                                 // jigsaw: act1|act2|complete
-  currentQuestion: null,
   jigsawStartedAt: null,
   jigsawClockRunning: false,
 };
@@ -68,7 +67,7 @@ let teams = [];          // { id, number, name, colour, memberIds }
 let jigsawPieces = [];   // { slot, ownerTeamNumber, holderTeamNumber, decoderTeamNumber, icon, valueText, code, placed, placedAt, locked }
 
 function resetSession() {
-  session = { activity: 'constellation', state: 'idle', currentQuestion: null, jigsawStartedAt: null, jigsawClockRunning: false };
+  session = { activity: 'constellation', state: 'idle', jigsawStartedAt: null, jigsawClockRunning: false };
   participants = {};
   answers = [];
   teams = [];
@@ -86,9 +85,10 @@ function uniqueName(base) {
   return `${base} (${n})`;
 }
 
-function answerCountForCurrentQuestion() {
-  if (session.currentQuestion === null) return 0;
-  return answers.filter(a => a.questionIndex === session.currentQuestion).length;
+function submittedCount() {
+  return Object.keys(participants).filter(pid =>
+    QUESTIONS.every((_, qi) => answers.some(a => a.participantId === pid && a.questionIndex === qi))
+  ).length;
 }
 
 // ============================================================
@@ -138,7 +138,7 @@ function runSplit() {
     }
   });
 
-  session.state = 'split';
+  session.state = 'teams_formed';
 }
 
 // ============================================================
@@ -253,22 +253,17 @@ io.on('connection', (socket) => {
     }
     if (participants[id]) {
       socket.emit('joined', participants[id]);
-      if (session.state === 'question' && session.currentQuestion !== null) {
-        socket.emit('question_live', { questionIndex: session.currentQuestion, question: QUESTIONS[session.currentQuestion] });
-      }
       return;
     }
     const finalName = uniqueName(name.trim());
     participants[id] = { id, name: finalName, joinedAt: Date.now(), teamId: null };
     socket.emit('joined', participants[id]);
-    if (session.state === 'question' && session.currentQuestion !== null) {
-      socket.emit('question_live', { questionIndex: session.currentQuestion, question: QUESTIONS[session.currentQuestion] });
-    }
     io.emit('participants_update', participants);
   });
 
   socket.on('submit_answer', ({ participantId, questionIndex, optionIndex }) => {
-    if (session.state !== 'question' || questionIndex !== session.currentQuestion) return;
+    if (session.state !== 'quiz_open') return;
+    if (questionIndex < 0 || questionIndex >= QUESTIONS.length) return;
     if (!participants[participantId]) return;
     const already = answers.find(a => a.participantId === participantId && a.questionIndex === questionIndex);
     if (already) return;
@@ -277,32 +272,18 @@ io.on('connection', (socket) => {
     answers.push(answer);
     socket.emit('answer_confirmed', answer);
     io.emit('answer_received', answer);
-    io.emit('answer_count', {
-      questionIndex, count: answerCountForCurrentQuestion(), total: Object.keys(participants).length,
-    });
+    io.emit('submitted_update', { submitted: submittedCount(), total: Object.keys(participants).length });
   });
 
   // ---------- CONSTELLATION FACILITATOR CONTROLS ----------
-  socket.on('facilitator_next_question', () => {
-    const next = session.currentQuestion === null ? 0 : session.currentQuestion + 1;
-    if (next >= QUESTIONS.length) return;
-    session.state = 'question';
-    session.currentQuestion = next;
-    io.emit('question_live', { questionIndex: next, question: QUESTIONS[next] });
+  socket.on('facilitator_start_quiz', () => {
+    session.state = 'quiz_open';
     io.emit('session_update', session);
   });
 
-  socket.on('facilitator_previous_question', () => {
-    if (session.currentQuestion === null || session.currentQuestion === 0) return;
-    session.currentQuestion -= 1;
-    session.state = 'question';
-    io.emit('question_live', { questionIndex: session.currentQuestion, question: QUESTIONS[session.currentQuestion] });
-    io.emit('session_update', session);
-  });
-
-  socket.on('facilitator_trigger_split', () => {
+  socket.on('facilitator_make_teams', () => {
     runSplit();
-    io.emit('split_triggered', { teams, participants });
+    io.emit('teams_formed', { teams, participants });
     io.emit('session_update', session);
   });
 
@@ -313,7 +294,7 @@ io.on('connection', (socket) => {
     if (!target) return;
     target.memberIds.push(participantId);
     participants[participantId].teamId = teamId;
-    io.emit('split_triggered', { teams, participants });
+    io.emit('teams_formed', { teams, participants });
   });
 
   socket.on('facilitator_delete_participant', ({ participantId }) => {

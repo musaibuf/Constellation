@@ -215,13 +215,13 @@ function getOrCreateParticipantId() {
 
 function ParticipantView() {
   const [participantId] = useState(getOrCreateParticipantId);
-  const [screen, setScreen] = useState('join');
+  const [screen, setScreen] = useState('join'); // join | waiting | quiz | submitted | reveal
   const [name, setName] = useState('');
   const [joinError, setJoinError] = useState('');
   const [joinedCount, setJoinedCount] = useState(0);
-  const [question, setQuestion] = useState(null);
-  const [questionIndex, setQuestionIndex] = useState(null);
-  const [totalQuestions, setTotalQuestions] = useState(6);
+  const [questions, setQuestions] = useState([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [answeredSet, setAnsweredSet] = useState(new Set());
   const [locked, setLocked] = useState(false);
   const [pending, setPending] = useState(false);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -234,11 +234,11 @@ function ParticipantView() {
     const me = state.participants[participantId];
     setJoinedCount(Object.keys(state.participants).length);
     setActivity(state.session.activity || 'constellation');
-    if (state.questions) setTotalQuestions(state.questions.length);
+    if (state.questions) setQuestions(state.questions);
     if (!me) { setScreen('join'); return; }
     setMyName(me.name);
 
-    if (state.session.state === 'split' || state.session.state === 'final' || state.session.activity === 'jigsaw') {
+    if (state.session.state === 'teams_formed' || state.session.activity === 'jigsaw') {
       const myTeam = state.teams.find((t) => t.id === me.teamId);
       if (myTeam) {
         setTeam(myTeam);
@@ -249,13 +249,16 @@ function ParticipantView() {
       }
     }
 
-    if (state.session.state === 'question' && state.session.currentQuestion !== null) {
-      setQuestion(state.questions[state.session.currentQuestion]);
-      setQuestionIndex(state.session.currentQuestion);
-      const already = state.answers.find((a) => a.participantId === participantId && a.questionIndex === state.session.currentQuestion);
-      setSelectedOption(already ? already.optionIndex : null);
-      setLocked(!!already);
-      setScreen('question');
+    if (state.session.state === 'quiz_open') {
+      const mine = state.answers.filter((a) => a.participantId === participantId);
+      const doneSet = new Set(mine.map((a) => a.questionIndex));
+      setAnsweredSet(doneSet);
+      const total = state.questions.length;
+      if (doneSet.size >= total) { setScreen('submitted'); return; }
+      const firstOpen = Array.from({ length: total }).findIndex((_, i) => !doneSet.has(i));
+      setQuizIndex(firstOpen === -1 ? 0 : firstOpen);
+      setSelectedOption(null); setLocked(false);
+      setScreen('quiz');
       return;
     }
     setScreen('waiting');
@@ -267,10 +270,7 @@ function ParticipantView() {
     socket.on('answer_confirmed', () => setPending(false));
     socket.on('join_error', ({ message }) => setJoinError(message));
     socket.on('participants_update', (p) => setJoinedCount(Object.keys(p).length));
-    socket.on('question_live', ({ questionIndex: qi, question: q }) => {
-      setQuestion(q); setQuestionIndex(qi); setSelectedOption(null); setLocked(false); setScreen('question');
-    });
-    socket.on('split_triggered', ({ teams, participants }) => {
+    socket.on('teams_formed', ({ teams, participants }) => {
       const me = participants[participantId];
       if (!me) return;
       const myTeam = teams.find((t) => t.id === me.teamId);
@@ -280,16 +280,21 @@ function ParticipantView() {
         setScreen('reveal');
       }
     });
-    socket.on('session_update', (session) => setActivity(session.activity || 'constellation'));
+    socket.on('session_update', (session) => {
+      setActivity(session.activity || 'constellation');
+      if (session.state === 'quiz_open') {
+        setScreen((s) => (s === 'waiting' ? 'quiz' : s));
+      }
+    });
     socket.on('jigsaw_started', () => setActivity('jigsaw'));
     socket.on('reset', () => {
-      setScreen('join'); setQuestion(null); setQuestionIndex(null);
+      setScreen('join'); setQuestions([]); setQuizIndex(0); setAnsweredSet(new Set());
       setSelectedOption(null); setLocked(false); setTeam(null); setTeammates([]); setActivity('constellation');
     });
     return () => {
       socket.off('state_sync', restoreFromState);
       socket.off('joined'); socket.off('join_error'); socket.off('participants_update');
-      socket.off('question_live'); socket.off('split_triggered'); socket.off('reset');
+      socket.off('teams_formed'); socket.off('reset');
       socket.off('answer_confirmed'); socket.off('session_update'); socket.off('jigsaw_started');
     };
   }, [participantId, restoreFromState]);
@@ -303,21 +308,32 @@ function ParticipantView() {
   }
 
   function handleAnswer(optionIndex) {
-    if (locked || questionIndex === null) return;
+    if (locked) return;
     setSelectedOption(optionIndex); setLocked(true); setPending(true);
-    socket.emit('submit_answer', { participantId, questionIndex, optionIndex });
-    setTimeout(() => {
-      setPending((stillPending) => {
-        if (stillPending) { setLocked(false); setSelectedOption(null); }
-        return false;
+    socket.emit('submit_answer', { participantId, questionIndex: quizIndex, optionIndex });
+
+    const confirmTimeout = setTimeout(() => {
+      setAnsweredSet((prev) => {
+        const next = new Set(prev); next.add(quizIndex);
+        if (next.size >= questions.length) { setScreen('submitted'); }
+        else {
+          const nextOpen = Array.from({ length: questions.length }).findIndex((_, i) => !next.has(i));
+          setQuizIndex(nextOpen === -1 ? 0 : nextOpen);
+          setSelectedOption(null); setLocked(false);
+        }
+        return next;
       });
-    }, 4000);
+      setPending(false);
+    }, 550); // brief pause so the "locked in" state is visible before advancing
+    return () => clearTimeout(confirmTimeout);
   }
 
   // Once a team is known and the room has moved to jigsaw, hand off entirely.
   if (team && activity === 'jigsaw') {
     return <JigsawParticipant team={team} />;
   }
+
+  const question = questions[quizIndex];
 
   return (
     <div className="lc-root">
@@ -352,11 +368,11 @@ function ParticipantView() {
           </div>
         )}
 
-        {screen === 'question' && question && (
+        {screen === 'quiz' && question && (
           <div className="lc-fadein" style={{ width: '100%' }}>
             <div className="lc-dots" style={{ marginBottom: 22 }}>
-              {Array.from({ length: totalQuestions }).map((_, i) => (
-                <span key={i} className={`lc-dot ${i < questionIndex ? 'done' : ''} ${i === questionIndex ? 'active' : ''}`} />
+              {questions.map((_, i) => (
+                <span key={i} className={`lc-dot ${answeredSet.has(i) ? 'done' : ''} ${i === quizIndex ? 'active' : ''}`} />
               ))}
             </div>
             <h2 className="lc-h2">{question.text}</h2>
@@ -371,9 +387,17 @@ function ParticipantView() {
             {locked && (
               <div className="lc-fadein" style={{ textAlign: 'center', marginTop: 22 }}>
                 <span className="lc-badge">{pending ? 'Sending…' : '✓ Locked in'}</span>
-                <p className="lc-faint">Watch the screen. Next question coming.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {screen === 'submitted' && (
+          <div className="lc-pop" style={{ textAlign: 'center', marginTop: 50, width: '100%' }}>
+            <div className="lc-pulse-dot" style={{ margin: '0 auto 24px', background: 'var(--gold)', boxShadow: '0 0 20px rgba(232,185,35,.6)' }} />
+            <h1 className="lc-h1">All done</h1>
+            <p className="lc-sub" style={{ marginTop: 10 }}>You've answered all {questions.length} questions.</p>
+            <p className="lc-faint">Look up at the screen. Waiting for everyone else to finish.</p>
           </div>
         )}
 
@@ -597,6 +621,26 @@ function QrToggle({ joinUrl }) {
 
 const TOP_BAR_HEIGHT = 60;
 
+function pathRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Grid cell for team block i (0-9), 5 columns x 2 rows.
+function teamBlockRect(i, w, h) {
+  const margin = Math.max(20, w * 0.015);
+  const gutter = 14;
+  const cellW = (w - margin * 2 - gutter * 4) / 5;
+  const cellH = (h - margin * 2 - gutter) / 2;
+  const col = i % 5, row = Math.floor(i / 5);
+  return { x: margin + col * (cellW + gutter), y: margin + row * (cellH + gutter), w: cellW, h: cellH };
+}
+
 function ProjectorView() {
   const canvasRef = useRef(null);
   const simRef = useRef(null);
@@ -604,7 +648,6 @@ function ProjectorView() {
   const persistentEdgesRef = useRef([]);
   const flashEdgesRef = useRef([]);
   const starsRef = useRef([]);
-  const questionsRef = useRef([]);
   const teamsRef = useRef([]);
   const stateRef = useRef('idle');
   const rafRef = useRef(null);
@@ -615,10 +658,9 @@ function ProjectorView() {
   const activityRef = useRef('constellation');
   const [sessionState, setSessionState] = useState('idle');
   const [joinedCount, setJoinedCount] = useState(0);
-  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [submittedCount, setSubmittedCount] = useState(0);
   const [teams, setTeams] = useState([]);
-  const [answerTally, setAnswerTally] = useState({});
-  const [showSplitBanner, setShowSplitBanner] = useState(false);
+  const [showFormingBanner, setShowFormingBanner] = useState(false);
 
   const [jigsawPieces, setJigsawPieces] = useState([]);
   const [jigsawTeams, setJigsawTeams] = useState([]);
@@ -701,6 +743,7 @@ function ProjectorView() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       seedStars();
       if (simRef.current) simRef.current.force('center', d3.forceCenter(dims.current.w / 2, dims.current.h / 2));
+      if (stateRef.current === 'teams_formed' && teamsRef.current.length) applyTeamPositions(teamsRef.current);
     }
     resize();
     window.addEventListener('resize', resize);
@@ -713,10 +756,62 @@ function ProjectorView() {
       .on('tick', () => { affinityForce(sim.alpha()); teamForce(sim.alpha()); });
     simRef.current = sim;
 
+    function drawTeamBlocks(w, h, now) {
+      teamsRef.current.forEach((t, i) => {
+        const rect = teamBlockRect(i, w, h);
+
+        ctx.save();
+        pathRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 16);
+        ctx.fillStyle = 'rgba(255,255,255,0.025)';
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = t.colour + '77';
+        ctx.shadowColor = t.colour;
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.save();
+        ctx.font = "700 15px Poppins, system-ui, sans-serif";
+        ctx.fillStyle = t.colour;
+        ctx.textAlign = 'left';
+        ctx.fillText(`TEAM ${t.number}`, rect.x + 14, rect.y + 24);
+        ctx.font = "500 11px Inter, system-ui, sans-serif";
+        ctx.fillStyle = 'rgba(245,240,232,.4)';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${t.memberIds.length}`, rect.x + rect.w - 14, rect.y + 24);
+        ctx.restore();
+
+        const memberNodes = t.memberIds.map((id) => nodesRef.current.find((n) => n.id === id)).filter(Boolean);
+
+        ctx.lineWidth = 0.7;
+        ctx.strokeStyle = t.colour + '38';
+        for (let a = 0; a < memberNodes.length; a++) {
+          for (let b = a + 1; b < memberNodes.length; b++) {
+            ctx.beginPath();
+            ctx.moveTo(memberNodes[a].x, memberNodes[a].y);
+            ctx.lineTo(memberNodes[b].x, memberNodes[b].y);
+            ctx.stroke();
+          }
+        }
+
+        memberNodes.forEach((n) => {
+          const entry = Math.min(1, (now - n.bornAt) / 600);
+          const r = n.radius * entry;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+          ctx.shadowColor = n.colour; ctx.shadowBlur = 9;
+          ctx.fillStyle = n.colour; ctx.fill(); ctx.shadowBlur = 0;
+          ctx.font = "500 10px Inter, system-ui, sans-serif";
+          ctx.fillStyle = `rgba(245,240,232,${0.7 * entry})`;
+          ctx.textAlign = 'left';
+          ctx.fillText(n.name || '', n.x + r + 4, n.y + 3);
+        });
+      });
+    }
+
     function draw(ts) {
       if (activityRef.current === 'jigsaw') {
-        // Jigsaw view doesn't render the canvas at all — stay idle instead
-        // of running the node physics and starfield for nothing.
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
@@ -725,14 +820,14 @@ function ProjectorView() {
       const dt = Math.min(lastFrameTsRef.current ? (ts - lastFrameTsRef.current) / 1000 : 0.016, 0.05);
       lastFrameTsRef.current = ts;
 
-      // Idle/populating: free-roaming nodes that bounce off the screen
-      // edges and the top bar, independent of the clustering forces below.
-      if (stateRef.current === 'idle' || stateRef.current === 'populating') {
+      // Gathering phase (joining + self-paced quiz): nodes roam freely and
+      // bounce off the screen edges and the top bar.
+      if (stateRef.current === 'idle' || stateRef.current === 'populating' || stateRef.current === 'quiz_open') {
         const top = TOP_BAR_HEIGHT + 20;
         nodesRef.current.forEach((n) => {
           if (n.wanderVx === undefined) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = 55 + Math.random() * 35; // px/sec
+            const speed = 55 + Math.random() * 35;
             n.wanderVx = Math.cos(angle) * speed;
             n.wanderVy = Math.sin(angle) * speed;
           }
@@ -755,7 +850,9 @@ function ProjectorView() {
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fillStyle = `rgba(245,240,232,${0.12 * tw})`; ctx.fill();
       });
 
-      if (stateRef.current !== 'jigsaw-mode') {
+      if (stateRef.current === 'teams_formed') {
+        drawTeamBlocks(w, h, now);
+      } else {
         persistentEdgesRef.current.forEach(({ a, b, w: shared }) => {
           const na = nodesRef.current.find((n) => n.id === a), nb = nodesRef.current.find((n) => n.id === b);
           if (!na || !nb) return;
@@ -775,15 +872,6 @@ function ProjectorView() {
           ctx.beginPath(); ctx.moveTo(na.x, na.y); ctx.lineTo(nb.x, nb.y); ctx.stroke(); ctx.shadowBlur = 0;
         });
 
-        if (stateRef.current === 'split' || stateRef.current === 'final') {
-          teamsRef.current.forEach((t) => {
-            if (!t.centre) return;
-            ctx.save(); ctx.textAlign = 'center'; ctx.font = "700 26px Poppins, system-ui, sans-serif";
-            ctx.shadowColor = t.colour; ctx.shadowBlur = 22; ctx.fillStyle = t.colour;
-            ctx.fillText(`TEAM ${t.number}`, t.centre.x, t.centre.y - 88); ctx.restore();
-          });
-        }
-
         nodesRef.current.forEach((n) => {
           const pulsing = now < n.pulseUntil;
           const pulseAmt = pulsing ? 1 + 0.9 * ((n.pulseUntil - now) / 900) : 1;
@@ -797,6 +885,7 @@ function ProjectorView() {
           ctx.beginPath(); ctx.arc(n.x - r * 0.28, n.y - r * 0.28, r * 0.35, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
           ctx.font = "500 11.5px Inter, system-ui, sans-serif"; ctx.fillStyle = `rgba(245,240,232,${0.55 * entry})`;
+          ctx.textAlign = 'left';
           ctx.fillText(n.name || '', n.x + r + 6, n.y + 4);
         });
       }
@@ -808,26 +897,25 @@ function ProjectorView() {
   }, []);
 
   useEffect(() => {
-    function tallyFrom(answers, qIndex) {
-      const t = {};
-      answers.filter((a) => a.questionIndex === qIndex).forEach((a) => { t[a.optionIndex] = (t[a.optionIndex] || 0) + 1; });
-      return t;
+    function computeSubmitted(state) {
+      const total = state.questions.length;
+      const byPid = {};
+      state.answers.forEach((a) => { (byPid[a.participantId] = byPid[a.participantId] || new Set()).add(a.questionIndex); });
+      return Object.values(byPid).filter((s) => s.size >= total).length;
     }
 
     socket.on('state_sync', (state) => {
-      questionsRef.current = state.questions;
       setActivity(state.session.activity || 'constellation');
       setJoinedCount(Object.keys(state.participants).length);
       setSessionState(state.session.state);
-      setCurrentQuestion(state.session.currentQuestion);
       setTeams(state.teams);
+      setSubmittedCount(computeSubmitted(state));
       Object.values(state.participants).forEach((p) => {
         const node = ensureNode(p.id, p.name);
         state.answers.filter((a) => a.participantId === p.id).forEach((a) => { node.answerVector[a.questionIndex] = a.optionIndex; });
       });
       recomputePersistentEdges();
-      if (state.session.currentQuestion !== null) setAnswerTally(tallyFrom(state.answers, state.session.currentQuestion));
-      if (state.session.state === 'split' || state.session.state === 'final') applyTeamPositions(state.teams);
+      if (state.session.state === 'teams_formed') applyTeamPositions(state.teams);
       setJigsawStartedAt(state.session.jigsawStartedAt);
       setJigsawClockRunning(state.session.jigsawClockRunning);
     });
@@ -841,36 +929,30 @@ function ProjectorView() {
       setSessionState((s) => (s === 'idle' ? 'populating' : s));
     });
 
-    socket.on('question_live', ({ questionIndex }) => {
-      setSessionState('question'); setCurrentQuestion(questionIndex); setAnswerTally({});
-      if (simRef.current) simRef.current.alpha(0.55).restart();
-    });
-
     socket.on('answer_received', (answer) => {
       const node = nodesRef.current.find((n) => n.id === answer.participantId);
       if (node) { node.answerVector[answer.questionIndex] = answer.optionIndex; node.pulseUntil = Date.now() + 900; }
       recomputePersistentEdges();
-      setAnswerTally((t) => ({ ...t, [answer.optionIndex]: (t[answer.optionIndex] || 0) + 1 }));
       const peers = nodesRef.current.filter((n) => n.id !== answer.participantId && n.answerVector[answer.questionIndex] === answer.optionIndex);
       d3.shuffle(peers.slice()).slice(0, 3).forEach((p) => flashEdgesRef.current.push({ a: answer.participantId, b: p.id, bornAt: Date.now() }));
       if (simRef.current) simRef.current.alpha(Math.max(simRef.current.alpha(), 0.28)).restart();
     });
 
+    socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
+
     socket.on('session_update', (session) => {
       setActivity(session.activity || 'constellation');
       setSessionState(session.state);
-      setCurrentQuestion(session.currentQuestion);
       setJigsawStartedAt(session.jigsawStartedAt);
       setJigsawClockRunning(session.jigsawClockRunning);
     });
 
-    socket.on('split_triggered', ({ teams }) => {
-      setTeams(teams); setSessionState('split'); setShowSplitBanner(true);
+    socket.on('teams_formed', ({ teams }) => {
+      setTeams(teams); setSessionState('teams_formed'); setShowFormingBanner(true);
       nodesRef.current.forEach((n) => { n.teamTarget = null; n.vx += (Math.random() - 0.5) * 34; n.vy += (Math.random() - 0.5) * 34; });
       if (simRef.current) simRef.current.alpha(1).restart();
       setTimeout(() => applyTeamPositions(teams), 1400);
-      setTimeout(() => setShowSplitBanner(false), 5200);
-      setTimeout(() => setSessionState('final'), 11000);
+      setTimeout(() => setShowFormingBanner(false), 4200);
     });
 
     socket.on('jigsaw_started', (data) => {
@@ -889,14 +971,14 @@ function ProjectorView() {
 
     socket.on('reset', () => {
       nodesRef.current = []; persistentEdgesRef.current = []; flashEdgesRef.current = [];
-      setTeams([]); setSessionState('idle'); setCurrentQuestion(null); setAnswerTally({});
+      setTeams([]); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
       setActivity('constellation'); setJigsawPieces([]); setJigsawTeams([]);
       if (simRef.current) { simRef.current.nodes([]); simRef.current.alpha(1).restart(); }
     });
 
     return () => {
-      socket.off('state_sync'); socket.off('participants_update'); socket.off('question_live');
-      socket.off('answer_received'); socket.off('session_update'); socket.off('split_triggered');
+      socket.off('state_sync'); socket.off('participants_update');
+      socket.off('answer_received'); socket.off('submitted_update'); socket.off('session_update'); socket.off('teams_formed');
       socket.off('jigsaw_started'); socket.off('jigsaw_board_update'); socket.off('jigsaw_piece_placed');
       socket.off('jigsaw_act2_unlocked'); socket.off('reset');
     };
@@ -904,29 +986,24 @@ function ProjectorView() {
 
   function applyTeamPositions(teamList) {
     const { w, h } = dims.current;
-    const cx = w / 2, cy = h / 2 + 20;
-    const ringR = Math.min(w, h) * 0.34;
     teamList.forEach((team, i) => {
-      const ang = (i / teamList.length) * Math.PI * 2 - Math.PI / 2;
-      const tx = cx + Math.cos(ang) * ringR * (w > h ? 1.45 : 1);
-      const ty = cy + Math.sin(ang) * ringR;
-      team.centre = { x: tx, y: ty };
+      const rect = teamBlockRect(i, w, h);
+      const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2 + 10;
+      const clusterR = Math.min(rect.w, rect.h) * 0.32;
+      team.centre = { x: cx, y: cy };
       const n = team.memberIds.length || 1;
       team.memberIds.forEach((pid, idx) => {
         const node = nodesRef.current.find((nn) => nn.id === pid);
         if (!node) return;
-        const inner = idx % 2 === 0 ? 34 : 58;
+        const ringR = idx % 2 === 0 ? clusterR * 0.55 : clusterR;
         const a = (idx / n) * Math.PI * 2;
-        node.teamTarget = { x: tx + Math.cos(a) * inner, y: ty + Math.sin(a) * inner };
-        node.colour = team.colour; node.radius = 7.5;
+        node.teamTarget = { x: cx + Math.cos(a) * ringR, y: cy + Math.sin(a) * ringR };
+        node.colour = team.colour; node.radius = 6.5;
       });
     });
     teamsRef.current = teamList;
     if (simRef.current) simRef.current.alpha(0.95).restart();
   }
-
-  const question = currentQuestion !== null ? questionsRef.current[currentQuestion] : null;
-  const totalAnswers = Object.values(answerTally).reduce((s, n) => s + n, 0);
 
   if (activity === 'jigsaw') {
     return (
@@ -985,7 +1062,7 @@ function ProjectorView() {
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
       <QrToggle joinUrl={joinUrl} />
 
-      {(sessionState === 'idle' || sessionState === 'populating') && (
+      {(sessionState === 'idle' || sessionState === 'populating' || sessionState === 'quiz_open') && (
         <div className="lc-fadein" style={{
           position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px',
@@ -1000,8 +1077,17 @@ function ProjectorView() {
             </span>
           </div>
           <div style={{ flex: 1, textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15 }}>
-            <span style={{ color: '#e8571a' }}>{joinedCount}</span>
-            <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>joined</span>
+            {sessionState === 'quiz_open' ? (
+              <>
+                <span style={{ color: '#e8571a' }}>{submittedCount}</span>
+                <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>submitted</span>
+              </>
+            ) : (
+              <>
+                <span style={{ color: '#e8571a' }}>{joinedCount}</span>
+                <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>joined</span>
+              </>
+            )}
           </div>
           <div style={{ flex: 1, textAlign: 'right', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>
             Convey Meaning. Create Significance.
@@ -1009,54 +1095,15 @@ function ProjectorView() {
         </div>
       )}
 
-      {sessionState === 'question' && question && (
-        <>
-          <div className="lc-fadein" style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '38px clamp(28px,4vw,60px) 60px', background: 'linear-gradient(to bottom, rgba(7,8,11,.94) 40%, transparent)', pointerEvents: 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-              <img src="/logo.png" alt="" style={{ height: 30, opacity: .8 }} />
-              <span style={{ fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 600 }}>Question {currentQuestion + 1} of {questionsRef.current.length}</span>
-            </div>
-            <h1 style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(28px,3.6vw,50px)', margin: '0 0 22px', letterSpacing: '-0.02em', color: '#f5f0e8' }}>{question.text}</h1>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              {question.options.map((opt, i) => {
-                const count = answerTally[i] || 0;
-                const pct = totalAnswers ? (count / totalAnswers) * 100 : 0;
-                return (
-                  <div key={i} style={{ position: 'relative', overflow: 'hidden', padding: '11px 22px', borderRadius: 999, fontSize: 17, border: '1px solid rgba(232,185,35,.35)', background: 'rgba(232,185,35,.06)', color: '#f0dfa8', minWidth: 120 }}>
-                    <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: 'linear-gradient(90deg, rgba(193,68,14,.5), rgba(232,185,35,.32))', transition: 'width .7s cubic-bezier(.2,.8,.3,1)' }} />
-                    <span style={{ position: 'relative' }}>{opt} <b style={{ color: '#fff', marginLeft: 6 }}>{count}</b></span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ position: 'absolute', bottom: 26, right: 34, textAlign: 'right', fontFamily: "'Poppins',sans-serif", pointerEvents: 'none' }}>
-            <div style={{ fontSize: 46, fontWeight: 800, color: '#fff', textShadow: '0 0 30px rgba(0,0,0,.8)' }}>{totalAnswers}<span style={{ color: 'rgba(245,240,232,.35)', fontSize: 28 }}>/{joinedCount}</span></div>
-            <div style={{ fontSize: 12, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>answered</div>
-          </div>
-        </>
-      )}
-
-      {showSplitBanner && (
+      {showFormingBanner && (
         <div className="lc-fadein" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: 'radial-gradient(circle, rgba(7,8,11,.72) 0%, transparent 65%)' }}>
           <div style={{ fontSize: 13, letterSpacing: '.3em', textTransform: 'uppercase', color: 'rgba(232,185,35,.8)', marginBottom: 14, fontWeight: 600 }}>Forming</div>
           <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>Ten Teams</div>
         </div>
       )}
 
-      {(sessionState === 'split' || sessionState === 'final') && !showSplitBanner && (
-        <>
-          <img src="/logo.png" alt="Carnelian" style={{ position: 'absolute', top: 28, left: 34, height: 40, opacity: .75 }} />
-          <div className="lc-fadein" style={{ position: 'absolute', bottom: 22, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', fontFamily: "'Inter',sans-serif", fontSize: 13, maxWidth: '92vw' }}>
-            {teams.map((t) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 15px', borderRadius: 999, background: 'rgba(255,255,255,0.04)', border: `1px solid ${t.colour}55`, backdropFilter: 'blur(10px)' }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.colour, boxShadow: `0 0 12px ${t.colour}` }} />
-                <span style={{ color: '#f5f0e8', fontWeight: 500 }}>Team {t.number}</span>
-                <span style={{ color: 'rgba(245,240,232,.4)', fontSize: 12 }}>{t.memberIds.length}</span>
-              </div>
-            ))}
-          </div>
-        </>
+      {sessionState === 'teams_formed' && !showFormingBanner && (
+        <img src="/logo.png" alt="Carnelian" style={{ position: 'absolute', top: 18, left: 20, height: 30, opacity: .6 }} />
       )}
     </div>
   );
@@ -1069,10 +1116,8 @@ function FacilitatorView() {
   const [joinedCount, setJoinedCount] = useState(0);
   const [activity, setActivity] = useState('constellation');
   const [sessionState, setSessionState] = useState('idle');
-  const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [submittedCount, setSubmittedCount] = useState(0);
   const [questions, setQuestions] = useState([]);
-  const [answerCount, setAnswerCount] = useState({ count: 0, total: 0 });
-  const [tally, setTally] = useState({});
   const [participants, setParticipants] = useState({});
   const [teams, setTeams] = useState([]);
   const [moveParticipantId, setMoveParticipantId] = useState('');
@@ -1085,51 +1130,47 @@ function FacilitatorView() {
   const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
 
   useEffect(() => {
+    function computeSubmitted(state) {
+      const total = state.questions.length;
+      const byPid = {};
+      state.answers.forEach((a) => { (byPid[a.participantId] = byPid[a.participantId] || new Set()).add(a.questionIndex); });
+      return Object.values(byPid).filter((s) => s.size >= total).length;
+    }
+
     socket.on('state_sync', (state) => {
       setQuestions(state.questions); setParticipants(state.participants);
       setJoinedCount(Object.keys(state.participants).length);
       setActivity(state.session.activity || 'constellation');
       setSessionState(state.session.state);
-      setCurrentQuestion(state.session.currentQuestion);
       setTeams(state.teams);
+      setSubmittedCount(computeSubmitted(state));
       setJigsawStartedAt(state.session.jigsawStartedAt);
       setJigsawClockRunning(state.session.jigsawClockRunning);
-      if (state.session.currentQuestion !== null) {
-        const rel = state.answers.filter((a) => a.questionIndex === state.session.currentQuestion);
-        setAnswerCount({ count: rel.length, total: Object.keys(state.participants).length });
-        const t = {}; rel.forEach((a) => { t[a.optionIndex] = (t[a.optionIndex] || 0) + 1; }); setTally(t);
-      }
     });
     socket.on('participants_update', (p) => { setParticipants(p); setJoinedCount(Object.keys(p).length); });
-    socket.on('question_live', ({ questionIndex }) => {
-      setCurrentQuestion(questionIndex); setSessionState('question');
-      setAnswerCount((prev) => ({ count: 0, total: prev.total })); setTally({});
-    });
-    socket.on('answer_received', (a) => setTally((t) => ({ ...t, [a.optionIndex]: (t[a.optionIndex] || 0) + 1 })));
-    socket.on('answer_count', (data) => setAnswerCount(data));
+    socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
     socket.on('session_update', (session) => {
-      setActivity(session.activity || 'constellation'); setSessionState(session.state); setCurrentQuestion(session.currentQuestion);
+      setActivity(session.activity || 'constellation'); setSessionState(session.state);
       setJigsawStartedAt(session.jigsawStartedAt); setJigsawClockRunning(session.jigsawClockRunning);
     });
-    socket.on('split_triggered', ({ teams }) => { setTeams(teams); setSessionState('split'); });
+    socket.on('teams_formed', ({ teams }) => { setTeams(teams); setSessionState('teams_formed'); });
     socket.on('jigsaw_started', (data) => {
       setActivity('jigsaw'); setJigsawTeams(data.teams); setJigsawStartedAt(data.session.jigsawStartedAt); setJigsawClockRunning(true);
     });
     socket.on('jigsaw_board_update', (data) => setJigsawTeams(data.teams));
     socket.on('reset', () => {
-      setActivity('constellation'); setSessionState('idle'); setCurrentQuestion(null); setJoinedCount(0);
-      setAnswerCount({ count: 0, total: 0 }); setTeams([]); setParticipants({}); setTally({}); setJigsawTeams([]);
+      setActivity('constellation'); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
+      setTeams([]); setParticipants({}); setJigsawTeams([]);
     });
     return () => {
-      socket.off('state_sync'); socket.off('participants_update'); socket.off('question_live');
-      socket.off('answer_received'); socket.off('answer_count'); socket.off('session_update');
-      socket.off('split_triggered'); socket.off('jigsaw_started'); socket.off('jigsaw_board_update'); socket.off('reset');
+      socket.off('state_sync'); socket.off('participants_update'); socket.off('submitted_update');
+      socket.off('session_update'); socket.off('teams_formed'); socket.off('jigsaw_started');
+      socket.off('jigsaw_board_update'); socket.off('reset');
     };
   }, []);
 
-  function nextQuestion() { socket.emit('facilitator_next_question'); }
-  function prevQuestion() { socket.emit('facilitator_previous_question'); }
-  function triggerSplit() { if (window.confirm('Trigger the team split? This cannot be undone without a reset.')) socket.emit('facilitator_trigger_split'); }
+  function startQuiz() { socket.emit('facilitator_start_quiz'); }
+  function makeTeams() { socket.emit('facilitator_make_teams'); }
   function resetAll() { if (window.confirm('Reset the whole session? Everything will be cleared.')) socket.emit('facilitator_reset'); }
   function startJigsaw() { if (window.confirm('Start the jigsaw puzzle? Teams must already exist.')) socket.emit('facilitator_start_jigsaw'); }
   function restartJigsaw() { if (window.confirm('Regenerate jigsaw codes and restart? Progress will be lost.')) socket.emit('facilitator_restart_jigsaw'); }
@@ -1141,8 +1182,7 @@ function FacilitatorView() {
   }
   function deleteParticipant(id) { if (window.confirm('Remove this participant?')) socket.emit('facilitator_delete_participant', { participantId: id }); }
 
-  const q = currentQuestion !== null ? questions[currentQuestion] : null;
-  const pct = joinedCount ? Math.round((answerCount.count / joinedCount) * 100) : 0;
+  const pct = joinedCount ? Math.round((submittedCount / joinedCount) * 100) : 0;
   const filtered = Object.values(participants).filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -1163,50 +1203,39 @@ function FacilitatorView() {
             <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
               <div className="lc-stat-card"><div className="lc-stat-label">Joined</div><div className="lc-stat-value">{joinedCount}</div></div>
               <div className="lc-stat-card">
-                <div className="lc-stat-label">Answered this question</div>
-                <div className="lc-stat-value" style={{ color: pct >= 80 ? '#3ddc84' : 'var(--ink)' }}>{answerCount.count}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{joinedCount}</span></div>
+                <div className="lc-stat-label">Submitted the quiz</div>
+                <div className="lc-stat-value" style={{ color: pct >= 80 ? '#3ddc84' : 'var(--ink)' }}>{submittedCount}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{joinedCount}</span></div>
                 <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${pct}%` }} /></div>
               </div>
               <div className="lc-stat-card">
-                <div className="lc-stat-label">Progress</div>
-                <div className="lc-stat-value">{currentQuestion !== null ? currentQuestion + 1 : '—'}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{questions.length || 6}</span></div>
-                <div className="lc-dots" style={{ marginTop: 12, justifyContent: 'flex-start' }}>
-                  {Array.from({ length: questions.length || 6 }).map((_, i) => (
-                    <span key={i} className={`lc-dot ${currentQuestion !== null && i < currentQuestion ? 'done' : ''} ${i === currentQuestion ? 'active' : ''}`} />
-                  ))}
-                </div>
+                <div className="lc-stat-label">Questions</div>
+                <div className="lc-stat-value">{questions.length || 6}</div>
               </div>
             </div>
 
             <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
-              <p style={{ margin: '0 0 6px', fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--ink-faint)' }}>{q ? `Question ${currentQuestion + 1}` : 'Not started'}</p>
-              <p style={{ margin: '0 0 18px', fontSize: 18, fontWeight: 500 }}>{q ? q.text : 'Press Next question to begin'}</p>
-              {q && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-                  {q.options.map((opt, i) => {
-                    const c = tally[i] || 0;
-                    const w = answerCount.count ? (c / answerCount.count) * 100 : 0;
-                    return (
-                      <div key={i}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span style={{ color: 'var(--ink-dim)' }}>{opt}</span><span style={{ fontWeight: 600 }}>{c}</span></div>
-                        <div className="lc-bar-track"><div className="lc-bar-fill" style={{ width: `${w}%` }} /></div>
-                      </div>
-                    );
-                  })}
-                </div>
+              {sessionState === 'idle' && (
+                <>
+                  <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
+                    Once you start, every joined phone gets all {questions.length || 6} questions at once — people answer at their own pace, no need to push each question.
+                  </p>
+                  <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
+                </>
               )}
-              <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-outline" onClick={prevQuestion} disabled={currentQuestion === null || currentQuestion === 0}>← Previous</button>
-                <button className="lc-btn lc-btn-primary" onClick={nextQuestion} disabled={currentQuestion !== null && currentQuestion >= questions.length - 1} style={{ flex: '2 1 200px' }}>
-                  {currentQuestion === null ? 'Start — Question 1' : 'Next question →'}
-                </button>
-              </div>
-              <p className="lc-faint">You never need 100 percent. Advance whenever the room feels done.</p>
+              {sessionState === 'quiz_open' && (
+                <>
+                  <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 500 }}>Quiz is open</p>
+                  <p className="lc-faint" style={{ marginTop: 0 }}>People are answering at their own pace. You never need everyone to finish — make teams whenever the room feels ready.</p>
+                </>
+              )}
+              {sessionState === 'teams_formed' && (
+                <p style={{ margin: 0, fontSize: 16, color: 'var(--ink-dim)' }}>Teams are formed. Start the jigsaw puzzle below when ready.</p>
+              )}
             </div>
 
             <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
               <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-danger" onClick={triggerSplit} style={{ flex: '2 1 220px' }}>✦ Trigger the split</button>
+                <button className="lc-btn lc-btn-danger" onClick={makeTeams} disabled={sessionState === 'idle'} style={{ flex: '2 1 220px' }}>✦ Make teams</button>
                 <button className="lc-btn lc-btn-outline" onClick={resetAll}>Reset to idle</button>
               </div>
             </div>
