@@ -144,8 +144,10 @@ const THEME_CSS = `
   }
   .lc-jig-slot.placed { animation: lc-glowpop 1s ease-out both; }
   .lc-jig-slot.locked::after {
-    content:'🔒'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    font-size:1.4em; background:rgba(0,0,0,.35);
+    content:''; position:absolute; inset:0;
+    background:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8b923' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 018 0v4'/></svg>") center / 34% no-repeat,
+      rgba(0,0,0,.35);
   }
 
   @media (max-width:640px) {
@@ -526,18 +528,28 @@ function JigsawParticipant({ team }) {
               <div key={idx} className="lc-card" style={{ padding: 20 }}>
                 {row.placed ? (
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>{row.icon}</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
+                      <JigIcon id={row.icon} size={44} />
+                    </div>
                     <p style={{ margin: 0, fontWeight: 600 }}>{row.valueText}</p>
                     <span className="lc-badge" style={{ marginTop: 10 }}>Slot {row.slot} · Placed</span>
                   </div>
                 ) : row.locked ? (
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 30 }}>🔒</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, color: 'var(--ink-faint)' }}>
+                      <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke="currentColor"
+                        strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="5" y="11" width="14" height="10" rx="2" />
+                        <path d="M8 11V7a4 4 0 018 0v4" />
+                      </svg>
+                    </div>
                     <p className="lc-faint">This piece unlocks once the rest of the board is done.</p>
                   </div>
                 ) : row.isRocket ? (
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 30, marginBottom: 8 }}>🚀</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
+                      <RocketIcon part="body" size={40} />
+                    </div>
                     <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
                     <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
                       Place slot {row.slot}
@@ -565,7 +577,7 @@ function JigsawParticipant({ team }) {
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these codes to the owning team when they find you.</p>
             {holding.map((h, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: h.placed ? 0.4 : 1 }}>
-                <span style={{ fontSize: 26 }}>{h.icon}</span>
+                <span style={{ color: 'var(--gold)', display: 'flex' }}><JigIcon id={h.icon} size={26} /></span>
                 <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>{h.code}</span>
                 <span className="lc-faint" style={{ margin: 0 }}>Team {h.ownerTeamNumber}</span>
               </div>
@@ -578,7 +590,7 @@ function JigsawParticipant({ team }) {
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these slot numbers to the owning team when they find you.</p>
             {legend.map((l, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: l.placed ? 0.4 : 1 }}>
-                <span style={{ fontSize: 26 }}>{l.icon}</span>
+                <span style={{ color: 'var(--gold)', display: 'flex' }}><JigIcon id={l.icon} size={26} /></span>
                 <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700 }}>Slot {l.slot}</span>
                 <span className="lc-faint" style={{ margin: 0 }}>Team {l.ownerTeamNumber}</span>
               </div>
@@ -622,6 +634,61 @@ function QrToggle({ joinUrl }) {
         </div>
       )}
     </>
+  );
+}
+
+/* ============================================================
+   JIGSAW ICON SET
+   Line-drawn SVGs rather than emoji: emoji render differently on every
+   OS, look inconsistent at projector scale, and read as clip-art. These
+   inherit currentColor so each piece takes its team colour.
+   Ids must match `icon` values in the backend's JIGSAW_CONTENT.
+   ============================================================ */
+const ICONS = {
+  handshake: 'M3 12l3-3 4 3 2-2 4 3 5-5M3 12l4 4 3-2 3 3 4-4',
+  target: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 4.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm0 3.5a1 1 0 100 2 1 1 0 000-2z',
+  flame: 'M12 3c3 4 5 6 5 9a5 5 0 01-10 0c0-2 1-3.5 2.5-5C10 8.5 11 6 12 3zm0 10.5a2 2 0 002 2',
+  compass: 'M12 3a9 9 0 100 18 9 9 0 000-18zm3.5 5.5l-2 5-5 2 2-5z',
+  chat: 'M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H9l-5 4V6zm4 4h8M8 13h5',
+  sprout: 'M12 21v-8m0 0c0-3-2-5-5-5 0 3 2 5 5 5zm0 0c0-3 2-5 5-5 0 3-2 5-5 5z',
+  tools: 'M4 20l7-7m-2-4L5 5 3 7l4 4m10 9l-7-7m4-2l4-4 2 2-4 4',
+  palette: 'M12 3a9 9 0 000 18c1 0 1.5-.8 1.5-1.5 0-1.5 1-2 2.5-2H18a3 3 0 003-3c0-6-4.5-11.5-9-11.5zM7.5 12a1 1 0 100-2 1 1 0 000 2zm3-3.5a1 1 0 100-2 1 1 0 000 2zm5 0a1 1 0 100-2 1 1 0 000 2z',
+  bolt: 'M13 2L4 14h6l-1 8 9-12h-6z',
+  puzzle: 'M9 4h6v2.5a2 2 0 104 0V9h2.5a2 2 0 100 4H21v6h-6v-2.5a2 2 0 10-4 0V19H5v-6h2.5a2 2 0 100-4H5V4h4z',
+  mirror: 'M12 3c3.5 0 6 3 6 6.5S15.5 16 12 16s-6-3-6-6.5S8.5 3 12 3zm0 13v5m-3 0h6',
+  bridge: 'M3 17V9m18 8V9M3 12c4-5 14-5 18 0M8 17v-4m8 4v-4M2 17h20',
+  megaphone: 'M4 10v4l10 5V5L4 10zm10 0h4a3 3 0 010 6h-4M7 15v4h3v-3',
+  clock: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 4v5l3.5 2',
+  globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 0c-3 3-3 15 0 18m0-18c3 3 3 15 0 18M3.5 9h17m-17 6h17',
+  brain: 'M9 4a3 3 0 00-3 3 3 3 0 00-1 5.5A3 3 0 007 17a3 3 0 005 1 3 3 0 005-1 3 3 0 002-4.5A3 3 0 0018 7a3 3 0 00-3-3 3 3 0 00-3 1.5A3 3 0 009 4zm3 1.5v13',
+  heart: 'M12 20s-7-4.5-7-9.5a4 4 0 017-2.5 4 4 0 017 2.5c0 5-7 9.5-7 9.5z',
+};
+
+// Rocket spine segments (slots 3, 8, 13) — wordless by design, per the brief.
+const ROCKET_PARTS = {
+  nose: 'M12 2c2.5 3 4 6 4 9H8c0-3 1.5-6 4-9zm0 5.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z',
+  body: 'M8 2h8v16H8V2zm0 5L4 11v6l4-3m8-8l4 4v6l-4-3m-6 5h4',
+  flame: 'M8 2h8v6H8V2zm4 6c2 3 3.5 5 3.5 7.5a3.5 3.5 0 01-7 0C8.5 13 10 11 12 8zm-4 2l-2 4m10-4l2 4',
+};
+
+function JigIcon({ id, size = 28, strokeWidth = 1.7, style }) {
+  const d = ICONS[id];
+  if (!d) return null;
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
+      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d={d} />
+    </svg>
+  );
+}
+
+function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
+  const d = ROCKET_PARTS[part] || ROCKET_PARTS.body;
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
+      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d={d} />
+    </svg>
   );
 }
 
@@ -1157,16 +1224,25 @@ function ProjectorView() {
           // laptop displays — this is what forced zooming out before.
           width: 'min(76vw, calc((100vh - 130px) * 1.25), 900px)',
         }}>
-          {jigsawPieces.map((p) => (
-            <div key={p.slot} className={`lc-jig-slot ${p.placed ? 'placed' : ''} ${p.locked ? 'locked' : ''}`}
-              style={{ borderColor: p.placed ? jigsawTeams.find(t => t.number === p.ownerTeamNumber)?.colour + '88' : undefined }}>
-              {p.placed ? (
-                <span style={{ fontSize: '1.8em' }}>{p.icon}</span>
-              ) : (
-                <span style={{ opacity: 0.3, fontSize: 13 }}>{p.slot}</span>
-              )}
-            </div>
-          ))}
+          {jigsawPieces.map((p) => {
+            const teamColour = jigsawTeams.find((t) => t.number === p.ownerTeamNumber)?.colour;
+            return (
+              <div key={p.slot} className={`lc-jig-slot ${p.placed ? 'placed' : ''} ${p.locked ? 'locked' : ''}`}
+                style={{ borderColor: p.placed ? teamColour + '88' : undefined }}>
+                {p.placed ? (
+                  p.isRocket ? (
+                    <RocketIcon part={p.rocketPart} size="52%" strokeWidth={1.5}
+                      style={{ color: '#e8b923', filter: 'drop-shadow(0 0 10px rgba(232,185,35,.55))' }} />
+                  ) : (
+                    <JigIcon id={p.icon} size="46%" strokeWidth={1.6}
+                      style={{ color: teamColour || '#f5f0e8', filter: `drop-shadow(0 0 8px ${teamColour || '#fff'}66)` }} />
+                  )
+                ) : (
+                  <span style={{ opacity: 0.3, fontSize: 13 }}>{p.slot}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ position: 'absolute', top: 90, right: 26, display: 'flex', flexDirection: 'column', gap: 8, width: 190 }}>
@@ -1182,13 +1258,26 @@ function ProjectorView() {
         {zoomPiece && (
           <div style={{
             position: 'absolute', inset: 0, background: 'rgba(7,8,11,.92)', display: 'flex',
-            flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22,
             animation: 'lc-zoomin .4s ease-out both',
           }}>
-            <div style={{ fontSize: 120 }}>{zoomPiece.icon}</div>
-            <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(28px,4vw,46px)', textAlign: 'center', maxWidth: '70vw' }}>
-              {zoomPiece.valueText}
-            </div>
+            {zoomPiece.isRocket ? (
+              <>
+                <RocketIcon part={zoomPiece.rocketPart} size={150} strokeWidth={1.2}
+                  style={{ color: '#e8b923', filter: 'drop-shadow(0 0 40px rgba(232,185,35,.6))' }} />
+                <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(24px,3vw,38px)', color: 'rgba(245,240,232,.85)' }}>
+                  The rocket takes shape
+                </div>
+              </>
+            ) : (
+              <>
+                <JigIcon id={zoomPiece.icon} size={140} strokeWidth={1.2}
+                  style={{ color: '#e8b923', filter: 'drop-shadow(0 0 36px rgba(232,185,35,.5))' }} />
+                <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(28px,4vw,46px)', textAlign: 'center', maxWidth: '70vw', lineHeight: 1.3 }}>
+                  {zoomPiece.valueText}
+                </div>
+              </>
+            )}
             <span className="lc-badge">Delivered by Team {zoomPiece.ownerTeamNumber}</span>
           </div>
         )}
