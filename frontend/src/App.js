@@ -1142,7 +1142,10 @@ function ProjectorView() {
         <div style={{
           position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
           display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10,
-          width: 'min(76vw, 900px)',
+          // Bounded by width AND height (whichever is tighter) so a 5x4 grid
+          // always fits the actual screen instead of overflowing on shorter
+          // laptop displays — this is what forced zooming out before.
+          width: 'min(76vw, calc((100vh - 130px) * 1.25), 900px)',
         }}>
           {jigsawPieces.map((p) => (
             <div key={p.slot} className={`lc-jig-slot ${p.placed ? 'placed' : ''} ${p.locked ? 'locked' : ''}`}
