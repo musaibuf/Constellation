@@ -29,26 +29,30 @@ const TEAM_COLOURS = ["#FF2D2D", "#FF7A00", "#FFD400", "#4CD64C", "#00D9C0", "#0
 
 const ROCKET_SLOTS = [3, 8, 13];
 
-// 17 icon + value pairs for the 17 non-rocket slots. Placeholder content —
-// swap for the real Carnelian values board before the event.
+// 17 icon + value pairs for the 17 non-rocket slots.
+// `icon` is an id that maps to an SVG in the frontend's ICONS map — keep the
+// two in sync if you add or rename any.
+// >>> REPLACE valueText WITH CARNELIAN'S REAL VALUES BOARD BEFORE THE EVENT <<<
+// These are placeholders. Each one is read aloud to the room by the team that
+// places it, so the wording matters more here than anywhere else in the app.
 const JIGSAW_CONTENT = [
-  { icon: '🤝', valueText: 'We show up for each other' },
-  { icon: '🎯', valueText: 'We aim before we act' },
-  { icon: '🔥', valueText: 'We bring energy, not excuses' },
-  { icon: '🧭', valueText: 'We choose direction over comfort' },
-  { icon: '💬', valueText: "We say the honest thing, kindly" },
-  { icon: '🌱', valueText: 'We grow in public, mistakes included' },
-  { icon: '🛠️', valueText: 'We build things that last' },
-  { icon: '🎨', valueText: 'We make the ordinary feel considered' },
-  { icon: '⚡', valueText: "We move when it matters" },
-  { icon: '🧩', valueText: "We trust the parts we can't see" },
-  { icon: '🪞', valueText: 'We hold ourselves to our own standard' },
-  { icon: '🌉', valueText: 'We connect people, not just tasks' },
-  { icon: '📣', valueText: "We speak up before it's too late" },
-  { icon: '🕰️', valueText: 'We respect twenty-five years of trust' },
-  { icon: '🌍', valueText: 'We work where our clients are' },
-  { icon: '🧠', valueText: 'We think before we template' },
-  { icon: '❤️', valueText: 'We care past the invoice' },
+  { icon: 'handshake', valueText: 'We show up for each other' },
+  { icon: 'target', valueText: 'We aim before we act' },
+  { icon: 'flame', valueText: 'We bring energy, not excuses' },
+  { icon: 'compass', valueText: 'We choose direction over comfort' },
+  { icon: 'chat', valueText: 'We say the honest thing, kindly' },
+  { icon: 'sprout', valueText: 'We grow in public, mistakes included' },
+  { icon: 'tools', valueText: 'We build things that last' },
+  { icon: 'palette', valueText: 'We make the ordinary feel considered' },
+  { icon: 'bolt', valueText: 'We move when it matters' },
+  { icon: 'puzzle', valueText: "We trust the parts we can't see" },
+  { icon: 'mirror', valueText: 'We hold ourselves to our own standard' },
+  { icon: 'bridge', valueText: 'We connect people, not just tasks' },
+  { icon: 'megaphone', valueText: "We speak up before it's too late" },
+  { icon: 'clock', valueText: 'We respect the trust we have earned' },
+  { icon: 'globe', valueText: 'We work where our clients are' },
+  { icon: 'brain', valueText: 'We think before we template' },
+  { icon: 'heart', valueText: 'We care past the invoice' },
 ];
 
 // ============================================================
@@ -205,6 +209,12 @@ function projectorJigsawState() {
       valueText: p.placed ? p.valueText : null,
       ownerTeamNumber: p.ownerTeamNumber,
       locked: p.locked,
+      // Rocket pieces carry no icon or text by design, so the frontend needs
+      // to know which spine segment to draw instead of rendering nothing.
+      isRocket: ROCKET_SLOTS.includes(p.slot),
+      rocketPart: ROCKET_SLOTS.includes(p.slot)
+        ? (p.slot === 3 ? 'nose' : p.slot === 8 ? 'body' : 'flame')
+        : null,
     })),
     teams: teams.map(t => ({
       ...t,
@@ -379,6 +389,10 @@ io.on('connection', (socket) => {
 
     io.emit('jigsaw_piece_placed', {
       slot: piece.slot, icon: piece.icon, valueText: piece.valueText, ownerTeamNumber: piece.ownerTeamNumber,
+      isRocket: ROCKET_SLOTS.includes(piece.slot),
+      rocketPart: ROCKET_SLOTS.includes(piece.slot)
+        ? (piece.slot === 3 ? 'nose' : piece.slot === 8 ? 'body' : 'flame')
+        : null,
     });
     io.emit('jigsaw_refresh', { teamNumbers: [piece.ownerTeamNumber, piece.holderTeamNumber, piece.decoderTeamNumber].filter(Boolean) });
 
