@@ -244,6 +244,11 @@ function teamJigsawState(teamNumber) {
 io.on('connection', (socket) => {
   socket.emit('state_sync', {
     session, participants, answers, teams, questions: QUESTIONS,
+    // Any client connecting or reconnecting mid- or post-jigsaw needs the
+    // full current board immediately — otherwise it only learns about
+    // placements from live broadcasts, and misses everything that happened
+    // before it connected (or during a brief disconnect).
+    jigsaw: session.activity === 'jigsaw' ? projectorJigsawState() : null,
   });
 
   socket.on('join', ({ id, name }) => {
