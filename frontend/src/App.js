@@ -704,7 +704,7 @@ function ProjectorView() {
         vx: 0, vy: 0, colour: '#e8571a', radius: 6.5, answerVector: {}, pulseUntil: 0, bornAt: Date.now(),
       };
       nodesRef.current.push(node);
-      if (simRef.current) { simRef.current.nodes(nodesRef.current); simRef.current.alpha(0.65).restart(); }
+      if (simRef.current) { simRef.current.nodes(nodesRef.current); }
     } else { node.name = name; }
     return node;
   }, []);
@@ -789,6 +789,12 @@ function ProjectorView() {
       .alphaDecay(0.018).alphaMin(0.002)
       .on('tick', () => { affinityForce(sim.alpha()); teamForce(sim.alpha()); });
     simRef.current = sim;
+    // Node positions are driven directly in the draw loop below (wander during
+    // the gathering phase, eased pull to team targets after formation). The d3
+    // simulation is kept only so existing references stay valid — running it
+    // would fight both: its charge force pushes nodes to the screen edges, and
+    // its decaying alpha freezes clusters mid-flight before they reach a box.
+    sim.stop();
 
     function drawTeamBlocks(w, h, now) {
       teamsRef.current.forEach((t, i) => {
@@ -867,7 +873,11 @@ function ProjectorView() {
       // Gathering phase (joining + self-paced quiz): nodes roam freely,
       // gently repel each other, and drift back toward center over time so
       // they never permanently settle along an edge or in a corner.
-      if (stateRef.current === 'idle' || stateRef.current === 'populating' || stateRef.current === 'quiz_open') {
+      // Also runs during the brief scatter right after teams are formed,
+      // before each node has been given its team target.
+      const isGathering = stateRef.current === 'idle' || stateRef.current === 'populating' || stateRef.current === 'quiz_open';
+      const isScattering = stateRef.current === 'teams_formed' && nodesRef.current.some((n) => !n.teamTarget);
+      if (isGathering || isScattering) {
         const top = TOP_BAR_HEIGHT + 20;
         const nodes = nodesRef.current;
         const centerX = w / 2, centerY = (h + top) / 2;
@@ -922,6 +932,20 @@ function ProjectorView() {
           if (n.x > w - r) { n.x = w - r; n.wanderVx = -Math.abs(n.wanderVx); }
           if (n.y < top + r) { n.y = top + r; n.wanderVy = Math.abs(n.wanderVy); }
           if (n.y > h - r) { n.y = h - r; n.wanderVy = -Math.abs(n.wanderVy); }
+        });
+      }
+
+      // Team formation: ease each node directly to its assigned slot inside
+      // its team's box, plus a small idle drift so the final state breathes.
+      if (stateRef.current === 'teams_formed') {
+        nodesRef.current.forEach((n) => {
+          if (!n.teamTarget) return;
+          const ease = Math.min(1, 3.2 * dt);
+          n.x += (n.teamTarget.x - n.x) * ease;
+          n.y += (n.teamTarget.y - n.y) * ease;
+          if (n.driftPhase === undefined) n.driftPhase = Math.random() * Math.PI * 2;
+          n.x += Math.sin(ts / 1400 + n.driftPhase) * 0.16;
+          n.y += Math.cos(ts / 1600 + n.driftPhase) * 0.16;
         });
       }
 
@@ -1023,7 +1047,6 @@ function ProjectorView() {
       recomputePersistentEdges();
       const peers = nodesRef.current.filter((n) => n.id !== answer.participantId && n.answerVector[answer.questionIndex] === answer.optionIndex);
       d3.shuffle(peers.slice()).slice(0, 3).forEach((p) => flashEdgesRef.current.push({ a: answer.participantId, b: p.id, bornAt: Date.now() }));
-      if (simRef.current) simRef.current.alpha(Math.max(simRef.current.alpha(), 0.28)).restart();
     });
 
     socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
@@ -1037,8 +1060,13 @@ function ProjectorView() {
 
     socket.on('teams_formed', ({ teams }) => {
       setTeams(teams); setSessionState('teams_formed'); setShowFormingBanner(true);
-      nodesRef.current.forEach((n) => { n.teamTarget = null; n.vx += (Math.random() - 0.5) * 34; n.vy += (Math.random() - 0.5) * 34; });
-      if (simRef.current) simRef.current.alpha(1).restart();
+      // Scatter outward first — nodes keep wandering until targets are
+      // assigned below, which reads as the graph breaking apart.
+      nodesRef.current.forEach((n) => {
+        n.teamTarget = null;
+        n.wanderVx = (n.wanderVx || 0) + (Math.random() - 0.5) * 90;
+        n.wanderVy = (n.wanderVy || 0) + (Math.random() - 0.5) * 90;
+      });
       setTimeout(() => {
         stateRef.current = 'teams_formed';
         updatePhysicsForPhase();
@@ -1067,7 +1095,7 @@ function ProjectorView() {
       setActivity('constellation'); setJigsawPieces([]); setJigsawTeams([]);
       stateRef.current = 'idle';
       updatePhysicsForPhase();
-      if (simRef.current) { simRef.current.nodes([]); simRef.current.alpha(1).restart(); }
+      if (simRef.current) { simRef.current.nodes([]); }
     });
 
     return () => {
@@ -1101,7 +1129,6 @@ function ProjectorView() {
       });
     });
     teamsRef.current = teamList;
-    if (simRef.current) simRef.current.alpha(0.95).restart();
   }
 
   if (activity === 'jigsaw') {
