@@ -139,7 +139,7 @@ const THEME_CSS = `
   .lc-tab.active { background:linear-gradient(135deg,var(--carnelian-bright),var(--carnelian)); color:#fff; }
 
   .lc-jig-slot {
-    aspect-ratio: 1; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center;
     position:relative; overflow:hidden; border:1.5px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02);
   }
   .lc-jig-slot.placed { animation: lc-glowpop 1s ease-out both; }
@@ -841,9 +841,18 @@ function ProjectorView() {
   const zoomTokenRef = useRef(0);
   const [jigsawStartedAt, setJigsawStartedAt] = useState(null);
   const [jigsawClockRunning, setJigsawClockRunning] = useState(false);
+  // Detected from the real file so the grid's true shape matches the
+  // artwork exactly — no more forcing square cells onto a non-square image.
+  const [puzzleAspect, setPuzzleAspect] = useState(1.25); // 5:4 fallback until loaded
 
   const joinUrl = `${window.location.origin}/`;
   const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => { if (img.naturalWidth && img.naturalHeight) setPuzzleAspect(img.naturalWidth / img.naturalHeight); };
+    img.src = '/final-puzzle.jpg';
+  }, []);
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
@@ -1307,11 +1316,12 @@ function ProjectorView() {
 
         <div style={{
           position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10,
-          // Bounded by width AND height (whichever is tighter) so a 5x4 grid
-          // always fits the actual screen instead of overflowing on shorter
-          // laptop displays — this is what forced zooming out before.
-          width: 'min(76vw, calc((100vh - 130px) * 1.25), 900px)',
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gridTemplateRows: 'repeat(4, 1fr)', gap: 10,
+          // Bounded by width AND height (whichever is tighter), and shaped to
+          // the artwork's real aspect ratio (detected on load) rather than an
+          // assumed 5:4 — this is what was distorting/compressing every tile.
+          width: `min(76vw, calc((100vh - 130px) * ${puzzleAspect}), 1100px)`,
+          aspectRatio: puzzleAspect,
         }}>
           {jigsawPieces.map((p) => {
             const teamColour = jigsawTeams.find((t) => t.number === p.ownerTeamNumber)?.colour;
