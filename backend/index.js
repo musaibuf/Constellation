@@ -29,30 +29,39 @@ const TEAM_COLOURS = ["#FF2D2D", "#FF7A00", "#FFD400", "#4CD64C", "#00D9C0", "#0
 
 const ROCKET_SLOTS = [3, 8, 13];
 
-// 17 icon + value pairs for the 17 non-rocket slots.
-// `icon` is an id that maps to an SVG in the frontend's ICONS map — keep the
-// two in sync if you add or rename any.
-// >>> REPLACE valueText WITH CARNELIAN'S REAL VALUES BOARD BEFORE THE EVENT <<<
-// These are placeholders. Each one is read aloud to the room by the team that
-// places it, so the wording matters more here than anywhere else in the app.
-const JIGSAW_CONTENT = [
-  { icon: 'handshake', valueText: 'We show up for each other' },
-  { icon: 'target', valueText: 'We aim before we act' },
-  { icon: 'flame', valueText: 'We bring energy, not excuses' },
-  { icon: 'compass', valueText: 'We choose direction over comfort' },
-  { icon: 'chat', valueText: 'We say the honest thing, kindly' },
-  { icon: 'sprout', valueText: 'We grow in public, mistakes included' },
-  { icon: 'tools', valueText: 'We build things that last' },
-  { icon: 'palette', valueText: 'We make the ordinary feel considered' },
-  { icon: 'bolt', valueText: 'We move when it matters' },
-  { icon: 'puzzle', valueText: "We trust the parts we can't see" },
-  { icon: 'mirror', valueText: 'We hold ourselves to our own standard' },
-  { icon: 'bridge', valueText: 'We connect people, not just tasks' },
-  { icon: 'megaphone', valueText: "We speak up before it's too late" },
-  { icon: 'clock', valueText: 'We respect the trust we have earned' },
-  { icon: 'globe', valueText: 'We work where our clients are' },
-  { icon: 'brain', valueText: 'We think before we template' },
-  { icon: 'heart', valueText: 'We care past the invoice' },
+// Fixed mapping from board slot to its value statement, matching the real
+// artwork in /public/final-puzzle.jpg (5 across x 4 down, rocket spine down
+// the center column for the first three rows). This must stay fixed, not
+// shuffled — each piece is a crop of one real image, so they only tile
+// together correctly in their true positions.
+const SLOT_VALUES = {
+  1: 'Clarity is Our Superpower',
+  2: 'Our Pioneering Spirit Defines Us',
+  4: 'We Fight Against Mediocrity',
+  5: 'We Put Results Above Rituals',
+  6: 'We Hire for Potential and Drive',
+  7: 'Courage Fuels Our Leadership',
+  9: 'We Aim for Audacious Impact',
+  10: 'We Incentivize with Integrity',
+  11: 'We Stand Strong Together',
+  12: 'We Never Give Up',
+  14: 'We Act with Ownership',
+  15: 'We Are Curious and Keep Learning',
+  16: 'We Care Deeply',
+  17: 'We Champion Inclusion',
+  18: "We Do What's Right",
+  19: 'We Create Value for Our World',
+  20: 'We Deliver Excellence',
+};
+
+// Icon ids are still shuffled fresh each session — they're only an opaque
+// matching key between a piece's holder and decoder, unrelated to its real
+// position, so randomizing them carries no risk and keeps the holder/legend
+// tabs unchanged. Must match the frontend's ICONS map keys.
+const ICON_IDS = [
+  'handshake', 'target', 'flame', 'compass', 'chat', 'sprout', 'tools',
+  'palette', 'bolt', 'puzzle', 'mirror', 'bridge', 'megaphone', 'clock',
+  'globe', 'brain', 'heart',
 ];
 
 // ============================================================
@@ -171,7 +180,7 @@ function randomCode() {
 function generateJigsawPieces() {
   const nonRocketSlots = [];
   for (let s = 1; s <= 20; s++) if (!ROCKET_SLOTS.includes(s)) nonRocketSlots.push(s);
-  const shuffledContent = shuffle(JIGSAW_CONTENT);
+  const shuffledIcons = shuffle(ICON_IDS); // random per session — matching key only
 
   const pieces = [];
   for (let slot = 1; slot <= 20; slot++) {
@@ -183,9 +192,8 @@ function generateJigsawPieces() {
     let icon = null, valueText = null, code = null;
     if (!isRocket) {
       const idx = nonRocketSlots.indexOf(slot);
-      const content = shuffledContent[idx];
-      icon = content.icon;
-      valueText = content.valueText;
+      icon = shuffledIcons[idx];
+      valueText = SLOT_VALUES[slot]; // fixed — matches the real artwork
       code = randomCode();
     }
 
@@ -209,12 +217,9 @@ function projectorJigsawState() {
       valueText: p.placed ? p.valueText : null,
       ownerTeamNumber: p.ownerTeamNumber,
       locked: p.locked,
-      // Rocket pieces carry no icon or text by design, so the frontend needs
-      // to know which spine segment to draw instead of rendering nothing.
+      // Once placed, the frontend crops the real artwork at this slot's
+      // grid position directly — no separate rocket rendering data needed.
       isRocket: ROCKET_SLOTS.includes(p.slot),
-      rocketPart: ROCKET_SLOTS.includes(p.slot)
-        ? (p.slot === 3 ? 'nose' : p.slot === 8 ? 'body' : 'flame')
-        : null,
     })),
     teams: teams.map(t => ({
       ...t,
@@ -390,9 +395,6 @@ io.on('connection', (socket) => {
     io.emit('jigsaw_piece_placed', {
       slot: piece.slot, icon: piece.icon, valueText: piece.valueText, ownerTeamNumber: piece.ownerTeamNumber,
       isRocket: ROCKET_SLOTS.includes(piece.slot),
-      rocketPart: ROCKET_SLOTS.includes(piece.slot)
-        ? (piece.slot === 3 ? 'nose' : piece.slot === 8 ? 'body' : 'flame')
-        : null,
     });
     io.emit('jigsaw_refresh', { teamNumbers: [piece.ownerTeamNumber, piece.holderTeamNumber, piece.decoderTeamNumber].filter(Boolean) });
 
