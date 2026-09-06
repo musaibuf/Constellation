@@ -1351,20 +1351,11 @@ function ProjectorView() {
         {zoomPiece && (
           <div style={{
             position: 'absolute', inset: 0, background: 'rgba(7,8,11,.92)', display: 'flex',
-            flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 26,
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28,
             animation: 'lc-zoomin .4s ease-out both',
           }}>
-            <PuzzleCrop slot={zoomPiece.slot} size={280} rounded={22}
+            <PuzzleCrop slot={zoomPiece.slot} size={340} rounded={24}
               style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6), 0 0 70px rgba(232,185,35,.3)', border: '1px solid rgba(232,185,35,.35)' }} />
-            {zoomPiece.isRocket ? (
-              <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(24px,3vw,38px)', color: 'rgba(245,240,232,.85)' }}>
-                The rocket takes shape
-              </div>
-            ) : (
-              <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(28px,4vw,46px)', textAlign: 'center', maxWidth: '70vw', lineHeight: 1.3 }}>
-                {zoomPiece.valueText}
-              </div>
-            )}
             <span className="lc-badge">Delivered by Team {zoomPiece.ownerTeamNumber}</span>
           </div>
         )}
