@@ -150,6 +150,23 @@ const THEME_CSS = `
       rgba(0,0,0,.35);
   }
 
+  .lc-modal-backdrop {
+    position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+    padding:20px; background:rgba(5,6,9,.72); backdrop-filter:blur(6px);
+    animation: lc-fadein .18s ease-out both;
+  }
+  .lc-modal {
+    width:100%; max-width:420px; padding:28px;
+    background: linear-gradient(160deg, rgba(31,33,45,.98), rgba(20,21,29,.98));
+    border:1px solid rgba(255,255,255,.09); border-radius:20px;
+    box-shadow:0 24px 70px rgba(0,0,0,.6);
+    animation: lc-pop .28s cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  .lc-modal-title { font-family:'Poppins',sans-serif; font-weight:700; font-size:19px; margin:0 0 10px; }
+  .lc-modal-msg { font-size:14.5px; color:var(--ink-dim); line-height:1.55; margin:0 0 24px; }
+  .lc-modal-actions { display:flex; gap:10px; }
+  .lc-modal-actions > * { flex:1; }
+
   @media (max-width:640px) {
     .lc-stats-row { flex-direction:column; }
     .lc-btn-row { flex-direction:column; }
@@ -185,6 +202,37 @@ function ConnectionPill() {
     <div className="lc-conn">
       <span className="lc-conn-dot" style={{ background: connected ? '#3ddc84' : '#ff6b6b', boxShadow: `0 0 8px ${connected ? '#3ddc84' : '#ff6b6b'}` }} />
       <span style={{ color: connected ? 'rgba(245,240,232,.7)' : '#ff9a9a' }}>{connected ? 'LIVE' : 'RECONNECTING'}</span>
+    </div>
+  );
+}
+
+/* Styled confirmation dialog — replaces window.confirm, which renders as a
+   raw browser alert with the Render URL in it and looks broken on a screen
+   the facilitator may be sharing. */
+function ConfirmModal({ open, title, message, confirmLabel = 'Confirm', danger, onConfirm, onCancel }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onConfirm();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onConfirm, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div className="lc-modal-backdrop" onClick={onCancel}>
+      <div className="lc-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="lc-modal-title">{title}</h3>
+        <p className="lc-modal-msg">{message}</p>
+        <div className="lc-modal-actions">
+          <button className="lc-btn lc-btn-outline" onClick={onCancel}>Cancel</button>
+          <button className={`lc-btn ${danger ? 'lc-btn-danger' : 'lc-btn-primary'}`} onClick={onConfirm}>
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -332,7 +380,7 @@ function ParticipantView() {
 
   // Once a team is known and the room has moved to jigsaw, hand off entirely.
   if (team && activity === 'jigsaw') {
-    return <JigsawParticipant team={team} />;
+    return <JigsawParticipant team={team} teammates={teammates} />;
   }
 
   const question = questions[quizIndex];
@@ -432,7 +480,7 @@ function ParticipantView() {
 /* ============================================================
    JIGSAW — PARTICIPANT (shared team state, any member can act)
    ============================================================ */
-function JigsawParticipant({ team }) {
+function JigsawParticipant({ team, teammates = [] }) {
   const [tab, setTab] = useState('board');
   const [board, setBoard] = useState([]);
   const [holding, setHolding] = useState([]);
@@ -520,6 +568,7 @@ function JigsawParticipant({ team }) {
           <button className={`lc-tab ${tab === 'board' ? 'active' : ''}`} onClick={() => setTab('board')}>Our board</button>
           <button className={`lc-tab ${tab === 'holding' ? 'active' : ''}`} onClick={() => setTab('holding')}>We're holding</button>
           <button className={`lc-tab ${tab === 'legend' ? 'active' : ''}`} onClick={() => setTab('legend')}>Our legend</button>
+          <button className={`lc-tab ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>My team</button>
         </div>
 
         {tab === 'board' && (
@@ -595,6 +644,21 @@ function JigsawParticipant({ team }) {
                 <span className="lc-faint" style={{ margin: 0 }}>Team {l.ownerTeamNumber}</span>
               </div>
             ))}
+          </div>
+        )}
+
+        {tab === 'team' && (
+          <div className="lc-fadein" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p className="lc-faint" style={{ marginTop: 0 }}>
+              Your team for the rest of the session. Find these people if you get separated.
+            </p>
+            {teammates.length > 0 ? (
+              teammates.map((n, i) => (
+                <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 40}ms` }}>{n}</div>
+              ))
+            ) : (
+              <div className="lc-teammate" style={{ opacity: 0.6, fontStyle: 'italic' }}>No one else on your team yet</div>
+            )}
           </div>
         )}
       </div>
@@ -1356,6 +1420,7 @@ function FacilitatorView() {
   const [jigsawTeams, setJigsawTeams] = useState([]);
   const [jigsawStartedAt, setJigsawStartedAt] = useState(null);
   const [jigsawClockRunning, setJigsawClockRunning] = useState(false);
+  const [confirm, setConfirm] = useState(null);
 
   const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
 
@@ -1402,16 +1467,48 @@ function FacilitatorView() {
 
   function startQuiz() { socket.emit('facilitator_start_quiz'); }
   function makeTeams() { socket.emit('facilitator_make_teams'); }
-  function resetAll() { if (window.confirm('Reset the whole session? Everything will be cleared.')) socket.emit('facilitator_reset'); }
-  function startJigsaw() { if (window.confirm('Start the jigsaw puzzle? Teams must already exist.')) socket.emit('facilitator_start_jigsaw'); }
-  function restartJigsaw() { if (window.confirm('Regenerate jigsaw codes and restart? Progress will be lost.')) socket.emit('facilitator_restart_jigsaw'); }
+  function resetAll() {
+    setConfirm({
+      title: 'Reset the entire session?',
+      message: 'All participants, answers, teams and puzzle progress will be cleared. Everyone will be sent back to the join screen.',
+      confirmLabel: 'Reset everything',
+      danger: true,
+      onConfirm: () => socket.emit('facilitator_reset'),
+    });
+  }
+  function startJigsaw() {
+    setConfirm({
+      title: 'Start the jigsaw puzzle?',
+      message: 'Every phone will switch over to the puzzle view and the room clock starts running.',
+      confirmLabel: 'Start puzzle',
+      onConfirm: () => socket.emit('facilitator_start_jigsaw'),
+    });
+  }
+  function restartJigsaw() {
+    setConfirm({
+      title: 'Restart the jigsaw?',
+      message: 'Fresh transfer codes will be generated and the board resets to empty. Teams stay as they are.',
+      confirmLabel: 'Restart puzzle',
+      danger: true,
+      onConfirm: () => socket.emit('facilitator_restart_jigsaw'),
+    });
+  }
   function sendHint(teamNumber) { socket.emit('facilitator_jigsaw_hint', { teamNumber }); }
   function moveParticipant() {
     if (!moveParticipantId || !moveTeamId) return;
     socket.emit('facilitator_move_participant', { participantId: moveParticipantId, teamId: moveTeamId });
     setMoveParticipantId(''); setMoveTeamId('');
   }
-  function deleteParticipant(id) { if (window.confirm('Remove this participant?')) socket.emit('facilitator_delete_participant', { participantId: id }); }
+  function deleteParticipant(id) {
+    const person = participants[id];
+    setConfirm({
+      title: 'Remove this person?',
+      message: `${person ? person.name : 'This participant'} will be removed from the room and from any team they were on.`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: () => socket.emit('facilitator_delete_participant', { participantId: id }),
+    });
+  }
 
   const pct = joinedCount ? Math.round((submittedCount / joinedCount) * 100) : 0;
   const filtered = Object.values(participants).filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -1558,6 +1655,16 @@ function FacilitatorView() {
           </>
         )}
       </div>
+
+      <ConfirmModal
+        open={!!confirm}
+        title={confirm?.title}
+        message={confirm?.message}
+        confirmLabel={confirm?.confirmLabel}
+        danger={confirm?.danger}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => { confirm?.onConfirm?.(); setConfirm(null); }}
+      />
     </div>
   );
 }
