@@ -858,7 +858,16 @@ function ProjectorView() {
 
   useEffect(() => {
     const img = new Image();
-    img.onload = () => { if (img.naturalWidth && img.naturalHeight) setPuzzleAspect(img.naturalWidth / img.naturalHeight); };
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      const raw = img.naturalWidth / img.naturalHeight;
+      // Clamp to a sane range regardless of the file's actual proportions —
+      // an unclamped extreme ratio (very wide or very tall) is exactly what
+      // collapsed the grid into a thin strip before this guard existed.
+      const clamped = Math.min(Math.max(raw, 0.7), 2.0);
+      setPuzzleAspect(clamped);
+    };
+    img.onerror = () => setPuzzleAspect(1.25); // couldn't load — keep the safe 5:4 fallback
     img.src = '/final-puzzle.jpg';
   }, []);
 
