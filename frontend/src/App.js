@@ -758,7 +758,7 @@ function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
   );
 }
 
-// Crops one tile out of /public/final-puzzle.jpg for a given board slot.
+// Crops one tile out of /public/Puzzle.png for a given board slot.
 // The image is a fixed 5-across x 4-down grid — this only shows correctly
 // once a piece is actually placed, since slot position is public at that
 // point but not before (matches "no preview of the finished artwork").
@@ -773,7 +773,7 @@ function PuzzleCrop({ slot, size, fill, rounded = 10, style }) {
       ...dims,
       borderRadius: rounded,
       overflow: 'hidden',
-      backgroundImage: "url('/final-puzzle.jpg')",
+      backgroundImage: "url('/Puzzle.png')",
       backgroundSize: '500% 400%',
       backgroundPosition: `${bgPosX}% ${bgPosY}%`,
       backgroundRepeat: 'no-repeat',
