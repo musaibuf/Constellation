@@ -205,6 +205,37 @@ function sectionsForOwner(ownerTeamNumber) {
 
 function nonRocketPieces() { return jigsawPieces.filter(p => !ROCKET_SLOTS.includes(p.slot)); }
 
+// Spreads jigsaw responsibility across individuals, not just teams. Each team
+// gets one "captain" (the only member who can actually submit placements for
+// their own board), and each code/slot this team holds or decodes for another
+// team goes to one specific, different member — never the whole roster at
+// once. Falls back to reusing members cyclically for teams too small to give
+// everyone a distinct role (e.g. a 1-person test team), rather than leaving
+// a role unassigned.
+function assignJigsawRoles() {
+  const cursors = {};
+  teams.forEach(team => {
+    cursors[team.number] = { members: shuffle(team.memberIds.slice()), idx: 0 };
+  });
+  function nextMember(teamNumber) {
+    const c = cursors[teamNumber];
+    if (!c || c.members.length === 0) return null;
+    const m = c.members[c.idx % c.members.length];
+    c.idx++;
+    return m;
+  }
+
+  teams.forEach(team => { team.captainId = nextMember(team.number); });
+
+  jigsawPieces
+    .filter(p => p.code !== null) // non-rocket only — rocket needs no holder/decoder
+    .sort((a, b) => a.slot - b.slot)
+    .forEach(piece => {
+      piece.codeHolderId = nextMember(piece.holderTeamNumber);
+      piece.slotKnowerId = nextMember(piece.decoderTeamNumber);
+    });
+}
+
 function projectorJigsawState() {
   return {
     session,
@@ -225,7 +256,15 @@ function projectorJigsawState() {
   };
 }
 
-function teamJigsawState(teamNumber) {
+// Individualized view: what THIS specific participant is allowed to see for
+// their team. Board is visible to everyone on the team (read-only unless
+// you're the captain); holding/legend only ever show a piece of info to the
+// one participant it was assigned to, never the whole roster.
+function teamJigsawStateFor(teamNumber, participantId) {
+  const team = teams.find(t => t.number === teamNumber);
+  const isCaptain = !!team && team.captainId === participantId;
+  const captainName = (team && participants[team.captainId]) ? participants[team.captainId].name : null;
+
   const ownSections = sectionsForOwner(teamNumber);
   const board = jigsawPieces
     .filter(p => p.ownerTeamNumber === teamNumber)
@@ -233,8 +272,6 @@ function teamJigsawState(teamNumber) {
       const isRocket = p.code === null;
       return {
         section: ownSections[p.slot],
-        // Rocket slots have no code/decoder dependency, so the team's own
-        // fixed slot number is safe to reveal even before placement.
         slot: (p.placed || isRocket) ? p.slot : null,
         valueText: p.placed ? p.valueText : null,
         placed: p.placed,
@@ -243,18 +280,18 @@ function teamJigsawState(teamNumber) {
       };
     });
   const holding = jigsawPieces
-    .filter(p => p.holderTeamNumber === teamNumber && p.code !== null) // rocket pieces need no holder
+    .filter(p => p.holderTeamNumber === teamNumber && p.code !== null && p.codeHolderId === participantId)
     .map(p => ({
       section: sectionsForOwner(p.ownerTeamNumber)[p.slot],
       code: p.code, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed,
     }));
   const legend = jigsawPieces
-    .filter(p => p.decoderTeamNumber === teamNumber)
+    .filter(p => p.decoderTeamNumber === teamNumber && p.slotKnowerId === participantId)
     .map(p => ({
       section: sectionsForOwner(p.ownerTeamNumber)[p.slot],
       slot: p.slot, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed,
     }));
-  return { board, holding, legend };
+  return { board, holding, legend, isCaptain, captainName };
 }
 
 // ============================================================
@@ -337,6 +374,7 @@ io.on('connection', (socket) => {
   socket.on('facilitator_start_jigsaw', () => {
     if (teams.length === 0) return; // need teams from a completed split first
     jigsawPieces = generateJigsawPieces();
+    assignJigsawRoles();
     session.activity = 'jigsaw';
     session.state = 'act1';
     session.jigsawStartedAt = Date.now();
@@ -348,6 +386,7 @@ io.on('connection', (socket) => {
   socket.on('facilitator_restart_jigsaw', () => {
     if (session.activity !== 'jigsaw') return;
     jigsawPieces = generateJigsawPieces(); // fresh codes, per acceptance test
+    assignJigsawRoles();
     session.state = 'act1';
     session.jigsawStartedAt = Date.now();
     session.jigsawClockRunning = true;
@@ -355,11 +394,16 @@ io.on('connection', (socket) => {
     io.emit('session_update', session);
   });
 
-  socket.on('jigsaw_get_team_state', ({ teamNumber }) => {
-    socket.emit('jigsaw_team_state', { teamNumber, ...teamJigsawState(teamNumber) });
+  socket.on('jigsaw_get_team_state', ({ teamNumber, participantId }) => {
+    socket.emit('jigsaw_team_state', { teamNumber, ...teamJigsawStateFor(teamNumber, participantId) });
   });
 
-  socket.on('jigsaw_place_piece', ({ teamNumber, code, slotNumber }) => {
+  socket.on('jigsaw_place_piece', ({ teamNumber, code, slotNumber, participantId }) => {
+    const team = teams.find(t => t.number === teamNumber);
+    if (team && team.captainId && team.captainId !== participantId) {
+      socket.emit('jigsaw_place_error', { message: "Only your team's puzzle captain can place pieces." });
+      return;
+    }
     const slot = Number(slotNumber);
     const piece = jigsawPieces.find(p => p.slot === slot);
 
@@ -380,7 +424,12 @@ io.on('connection', (socket) => {
     placePiece(piece);
   });
 
-  socket.on('jigsaw_place_rocket', ({ teamNumber, slotNumber }) => {
+  socket.on('jigsaw_place_rocket', ({ teamNumber, slotNumber, participantId }) => {
+    const team = teams.find(t => t.number === teamNumber);
+    if (team && team.captainId && team.captainId !== participantId) {
+      socket.emit('jigsaw_place_error', { message: "Only your team's puzzle captain can place pieces." });
+      return;
+    }
     const slot = Number(slotNumber);
     const piece = jigsawPieces.find(p => p.slot === slot);
     if (!piece || piece.ownerTeamNumber !== teamNumber) return;
