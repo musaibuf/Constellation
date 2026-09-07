@@ -55,6 +55,10 @@ const THEME_CSS = `
   @keyframes lc-spin { to { transform: rotate(360deg); } }
   @keyframes lc-zoomin { from { opacity:0; transform: scale(0.85); } to { opacity:1; transform: scale(1); } }
   @keyframes lc-glowpop { 0% { box-shadow: 0 0 0 rgba(232,185,35,0); } 40% { box-shadow: 0 0 60px rgba(232,185,35,.8); } 100% { box-shadow: 0 0 20px rgba(232,185,35,.3); } }
+  @keyframes lc-boomflash { 0% { opacity:0; } 15% { opacity:1; } 100% { opacity:0; } }
+  @keyframes lc-meshdraw { 0% { opacity:0; } 100% { opacity:1; } }
+  @keyframes lc-meshglow { 0%,100% { opacity: 0.35; } 50% { opacity: 0.6; } }
+  @keyframes lc-completebanner { 0% { opacity:0; transform: translateY(10px) scale(0.97); } 15% { opacity:1; transform: translateY(0) scale(1); } 80% { opacity:1; } 100% { opacity:0; } }
 
   .lc-fadein { animation: lc-fadein 0.5s ease-out both; }
   .lc-pop { animation: lc-pop 0.55s cubic-bezier(.2,.9,.3,1.2) both; }
@@ -380,7 +384,7 @@ function ParticipantView() {
 
   // Once a team is known and the room has moved to jigsaw, hand off entirely.
   if (team && activity === 'jigsaw') {
-    return <JigsawParticipant team={team} teammates={teammates} />;
+    return <JigsawParticipant team={team} teammates={teammates} participantId={participantId} />;
   }
 
   const question = questions[quizIndex];
@@ -480,24 +484,27 @@ function ParticipantView() {
 /* ============================================================
    JIGSAW — PARTICIPANT (shared team state, any member can act)
    ============================================================ */
-function JigsawParticipant({ team, teammates = [] }) {
+function JigsawParticipant({ team, teammates = [], participantId }) {
   const [tab, setTab] = useState('board');
   const [board, setBoard] = useState([]);
   const [holding, setHolding] = useState([]);
   const [legend, setLegend] = useState([]);
+  const [isCaptain, setIsCaptain] = useState(false);
+  const [captainName, setCaptainName] = useState(null);
   const [errors, setErrors] = useState({});
   const [inputs, setInputs] = useState({}); // { rowIndex: { code, slot } }
   const [hintBanner, setHintBanner] = useState(null);
 
   const requestState = useCallback(() => {
-    socket.emit('jigsaw_get_team_state', { teamNumber: team.number });
-  }, [team.number]);
+    socket.emit('jigsaw_get_team_state', { teamNumber: team.number, participantId });
+  }, [team.number, participantId]);
 
   useEffect(() => {
     requestState();
     socket.on('jigsaw_team_state', (data) => {
       if (data.teamNumber !== team.number) return;
       setBoard(data.board); setHolding(data.holding); setLegend(data.legend);
+      setIsCaptain(!!data.isCaptain); setCaptainName(data.captainName || null);
     });
     socket.on('jigsaw_refresh', ({ teamNumbers }) => {
       if (teamNumbers.includes(team.number)) requestState();
@@ -529,11 +536,11 @@ function JigsawParticipant({ team, teammates = [] }) {
       setTimeout(() => setErrors((e) => ({ ...e, active: null })), 2500);
       return;
     }
-    socket.emit('jigsaw_place_piece', { teamNumber: team.number, code: row.code, slotNumber: row.slot });
+    socket.emit('jigsaw_place_piece', { teamNumber: team.number, code: row.code, slotNumber: row.slot, participantId });
   }
 
   function submitRocket(slot) {
-    socket.emit('jigsaw_place_rocket', { teamNumber: team.number, slotNumber: slot });
+    socket.emit('jigsaw_place_rocket', { teamNumber: team.number, slotNumber: slot, participantId });
   }
 
   return (
@@ -543,10 +550,11 @@ function JigsawParticipant({ team, teammates = [] }) {
       <div className="lc-content" style={{ minHeight: '100dvh', padding: '28px 18px 48px', maxWidth: 480, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <img src="/logo.png" alt="" style={{ height: 32 }} />
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span className="lc-badge" style={{ background: `${team.colour}22`, color: team.colour, borderColor: `${team.colour}55` }}>
               Team {team.number}
             </span>
+            {isCaptain && <span className="lc-badge" style={{ background: 'rgba(232,185,35,.15)', color: 'var(--gold)', borderColor: 'rgba(232,185,35,.3)' }}>You're the captain</span>}
           </div>
         </div>
 
@@ -576,7 +584,9 @@ function JigsawParticipant({ team, teammates = [] }) {
             <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
               {board.length > 0 && board.every((r) => r.isRocket)
                 ? "Your team owns two sections of the puzzle. Both are part of the rocket — you'll place them at the very end, in front of everyone. No codes to collect."
-                : 'Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.'}
+                : isCaptain
+                  ? 'Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.'
+                  : `Your team owns two sections of the puzzle. ${captainName || 'Your team\'s captain'} handles entering the codes and slots — track them down if you find one.`}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {board.map((row, idx) => (
@@ -607,16 +617,25 @@ function JigsawParticipant({ team, teammates = [] }) {
                       </p>
                     </div>
                   ) : row.isRocket ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
-                        <RocketIcon part="body" size={40} />
+                    isCaptain ? (
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
+                          <RocketIcon part="body" size={40} />
+                        </div>
+                        <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
+                        <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
+                          Place slot {row.slot}
+                        </button>
                       </div>
-                      <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
-                      <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
-                        Place slot {row.slot}
-                      </button>
-                    </div>
-                  ) : (
+                    ) : (
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
+                          <RocketIcon part="body" size={40} />
+                        </div>
+                        <p className="lc-faint">Unlocked and ready. {captainName || 'Your captain'} will place it live.</p>
+                      </div>
+                    )
+                  ) : isCaptain ? (
                     <div>
                       <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                         <input className="lc-input" placeholder="Slot #" inputMode="numeric"
@@ -626,6 +645,10 @@ function JigsawParticipant({ team, teammates = [] }) {
                       </div>
                       <button className="lc-btn lc-btn-primary" style={{ width: '100%' }} onClick={() => submitPlacement(idx)}>Place piece</button>
                     </div>
+                  ) : (
+                    <p className="lc-faint" style={{ textAlign: 'center' }}>
+                      Still waiting on a code and slot. {captainName || 'Your captain'} will enter them here once found.
+                    </p>
                   )}
                 </div>
               ))}
@@ -638,7 +661,7 @@ function JigsawParticipant({ team, teammates = [] }) {
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these codes to the owning team when they find you.</p>
             {holding.length === 0 ? (
               <div className="lc-card" style={{ padding: '16px 18px' }}>
-                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You aren't holding anyone's sections right now.</p>
+                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You don't have a code to share right now — a teammate might.</p>
               </div>
             ) : holding.map((h, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: h.placed ? 0.4 : 1 }}>
@@ -655,7 +678,7 @@ function JigsawParticipant({ team, teammates = [] }) {
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these slot numbers to the owning team when they find you.</p>
             {legend.length === 0 ? (
               <div className="lc-card" style={{ padding: '16px 18px' }}>
-                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You aren't decoding anyone's slots right now.</p>
+                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You don't have a slot to share right now — a teammate might.</p>
               </div>
             ) : legend.map((l, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: l.placed ? 0.4 : 1 }}>
@@ -827,6 +850,8 @@ function ProjectorView() {
   // Detected from the real file so the grid's true shape matches the
   // artwork exactly — no more forcing square cells onto a non-square image.
   const [puzzleAspect, setPuzzleAspect] = useState(1.25); // 5:4 fallback until loaded
+  const [showCompleteBoom, setShowCompleteBoom] = useState(false);
+  const prevJigsawStateRef = useRef(null);
 
   const joinUrl = `${window.location.origin}/`;
   const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
@@ -836,6 +861,17 @@ function ProjectorView() {
     img.onload = () => { if (img.naturalWidth && img.naturalHeight) setPuzzleAspect(img.naturalWidth / img.naturalHeight); };
     img.src = '/final-puzzle.jpg';
   }, []);
+
+  // Fires once, right when the board actually finishes — a quick flash and
+  // a connecting mesh sweeping across every piece, then settles into a
+  // quieter persistent glow for as long as the board holds its final state.
+  useEffect(() => {
+    if (sessionState === 'complete' && prevJigsawStateRef.current !== 'complete') {
+      setShowCompleteBoom(true);
+      setTimeout(() => setShowCompleteBoom(false), 3200);
+    }
+    prevJigsawStateRef.current = sessionState;
+  }, [sessionState]);
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
@@ -1319,7 +1355,54 @@ function ProjectorView() {
               </div>
             );
           })}
+
+          {sessionState === 'complete' && (
+            <svg
+              viewBox="0 0 5 4" preserveAspectRatio="none"
+              style={{ gridColumn: '1 / -1', gridRow: '1 / -1', pointerEvents: 'none', position: 'relative', zIndex: 5, width: '100%', height: '100%' }}
+            >
+              {Array.from({ length: 20 }).map((_, idx) => {
+                const col = idx % 5, row = Math.floor(idx / 5);
+                const cx = col + 0.5, cy = row + 0.5;
+                const lines = [];
+                if (col < 4) lines.push({ x1: cx, y1: cy, x2: cx + 1, y2: cy, key: `h${idx}` });
+                if (row < 3) lines.push({ x1: cx, y1: cy, x2: cx, y2: cy + 1, key: `v${idx}` });
+                return lines.map((l) => (
+                  <line key={l.key} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                    stroke="#e8b923" strokeWidth={0.012} vectorEffect="non-scaling-stroke"
+                    style={{
+                      animation: showCompleteBoom
+                        ? 'lc-meshdraw 1s ease-out both'
+                        : 'lc-meshglow 3.5s ease-in-out infinite',
+                      animationDelay: showCompleteBoom ? `${idx * 25}ms` : `${idx * 90}ms`,
+                    }} />
+                ));
+              })}
+            </svg>
+          )}
+
+          {showCompleteBoom && (
+            <div style={{
+              gridColumn: '1 / -1', gridRow: '1 / -1', pointerEvents: 'none', position: 'relative', zIndex: 6,
+              background: 'radial-gradient(circle, rgba(232,185,35,.55) 0%, transparent 70%)',
+              animation: 'lc-boomflash 1.1s ease-out both',
+            }} />
+          )}
         </div>
+
+        {showCompleteBoom && (
+          <div style={{
+            position: 'absolute', bottom: '8%', left: '50%', transform: 'translateX(-50%)',
+            pointerEvents: 'none', textAlign: 'center', animation: 'lc-completebanner 3.2s ease-out both',
+          }}>
+            <div style={{
+              fontFamily: "'Poppins',sans-serif", fontWeight: 800, letterSpacing: '-0.02em',
+              fontSize: 'clamp(28px,4vw,48px)', color: '#f5f0e8', textShadow: '0 0 40px rgba(232,185,35,.6)',
+            }}>
+              The picture is complete
+            </div>
+          </div>
+        )}
 
         <div style={{ position: 'absolute', top: 90, right: 26, display: 'flex', flexDirection: 'column', gap: 8, width: 190 }}>
           {jigsawTeams.map((t) => (
