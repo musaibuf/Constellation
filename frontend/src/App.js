@@ -55,10 +55,6 @@ const THEME_CSS = `
   @keyframes lc-spin { to { transform: rotate(360deg); } }
   @keyframes lc-zoomin { from { opacity:0; transform: scale(0.85); } to { opacity:1; transform: scale(1); } }
   @keyframes lc-glowpop { 0% { box-shadow: 0 0 0 rgba(232,185,35,0); } 40% { box-shadow: 0 0 60px rgba(232,185,35,.8); } 100% { box-shadow: 0 0 20px rgba(232,185,35,.3); } }
-  @keyframes lc-boomflash { 0% { opacity:0; } 15% { opacity:1; } 100% { opacity:0; } }
-  @keyframes lc-meshdraw { 0% { opacity:0; } 100% { opacity:1; } }
-  @keyframes lc-meshglow { 0%,100% { opacity: 0.35; } 50% { opacity: 0.6; } }
-  @keyframes lc-completebanner { 0% { opacity:0; transform: translateY(10px) scale(0.97); } 15% { opacity:1; transform: translateY(0) scale(1); } 80% { opacity:1; } 100% { opacity:0; } }
 
   .lc-fadein { animation: lc-fadein 0.5s ease-out both; }
   .lc-pop { animation: lc-pop 0.55s cubic-bezier(.2,.9,.3,1.2) both; }
@@ -847,60 +843,9 @@ function ProjectorView() {
   const zoomTokenRef = useRef(0);
   const [jigsawStartedAt, setJigsawStartedAt] = useState(null);
   const [jigsawClockRunning, setJigsawClockRunning] = useState(false);
-  // Detected from the real file so the grid's true shape matches the
-  // artwork exactly — no more forcing square cells onto a non-square image.
-  const [puzzleAspect, setPuzzleAspect] = useState(1.25); // 5:4 fallback until loaded
-  const [showCompleteBoom, setShowCompleteBoom] = useState(false);
-  const prevJigsawStateRef = useRef(null);
 
   const joinUrl = `${window.location.origin}/`;
   const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      if (!img.naturalWidth || !img.naturalHeight) return;
-      const raw = img.naturalWidth / img.naturalHeight;
-      // Clamp to a sane range regardless of the file's actual proportions —
-      // an unclamped extreme ratio (very wide or very tall) is exactly what
-      // collapsed the grid into a thin strip before this guard existed.
-      const clamped = Math.min(Math.max(raw, 0.7), 2.0);
-      setPuzzleAspect(clamped);
-    };
-    img.onerror = () => setPuzzleAspect(1.25); // couldn't load — keep the safe 5:4 fallback
-    img.src = '/final-puzzle.jpg';
-  }, []);
-
-  // Pixel size computed directly in JS, not left to CSS aspect-ratio + calc()
-  // to resolve on its own — that combination was silently collapsing the
-  // grid to a sliver in some cases. This is deterministic and always sane.
-  const [gridSize, setGridSize] = useState({ width: 900, height: 720 });
-  useEffect(() => {
-    function recompute() {
-      const availW = window.innerWidth * 0.76;
-      const availH = window.innerHeight - 130;
-      let w = Math.min(availW, availH * puzzleAspect, 1100);
-      let h = w / puzzleAspect;
-      // Hard floor — the grid must never render smaller than this,
-      // regardless of what any calculation above produces.
-      if (h < 300) { h = 300; w = h * puzzleAspect; }
-      setGridSize({ width: Math.round(w), height: Math.round(h) });
-    }
-    recompute();
-    window.addEventListener('resize', recompute);
-    return () => window.removeEventListener('resize', recompute);
-  }, [puzzleAspect]);
-
-  // Fires once, right when the board actually finishes — a quick flash and
-  // a connecting mesh sweeping across every piece, then settles into a
-  // quieter persistent glow for as long as the board holds its final state.
-  useEffect(() => {
-    if (sessionState === 'complete' && prevJigsawStateRef.current !== 'complete') {
-      setShowCompleteBoom(true);
-      setTimeout(() => setShowCompleteBoom(false), 3200);
-    }
-    prevJigsawStateRef.current = sessionState;
-  }, [sessionState]);
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
@@ -1364,11 +1309,8 @@ function ProjectorView() {
 
         <div style={{
           position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gridTemplateRows: 'repeat(4, 1fr)', gap: 10,
-          // Explicit pixel size computed in JS (see gridSize above) — CSS
-          // aspect-ratio + calc() was silently collapsing this to a sliver
-          // in some cases, this is deterministic and can't do that.
-          width: gridSize.width, height: gridSize.height,
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10,
+          width: 'min(76vw, calc((100vh - 130px) * 1.25), 900px)',
         }}>
           {jigsawPieces.map((p) => {
             const teamColour = jigsawTeams.find((t) => t.number === p.ownerTeamNumber)?.colour;
@@ -1383,54 +1325,7 @@ function ProjectorView() {
               </div>
             );
           })}
-
-          {sessionState === 'complete' && (
-            <svg
-              viewBox="0 0 5 4" preserveAspectRatio="none"
-              style={{ gridColumn: '1 / -1', gridRow: '1 / -1', pointerEvents: 'none', position: 'relative', zIndex: 5, width: '100%', height: '100%' }}
-            >
-              {Array.from({ length: 20 }).map((_, idx) => {
-                const col = idx % 5, row = Math.floor(idx / 5);
-                const cx = col + 0.5, cy = row + 0.5;
-                const lines = [];
-                if (col < 4) lines.push({ x1: cx, y1: cy, x2: cx + 1, y2: cy, key: `h${idx}` });
-                if (row < 3) lines.push({ x1: cx, y1: cy, x2: cx, y2: cy + 1, key: `v${idx}` });
-                return lines.map((l) => (
-                  <line key={l.key} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-                    stroke="#e8b923" strokeWidth={0.012} vectorEffect="non-scaling-stroke"
-                    style={{
-                      animation: showCompleteBoom
-                        ? 'lc-meshdraw 1s ease-out both'
-                        : 'lc-meshglow 3.5s ease-in-out infinite',
-                      animationDelay: showCompleteBoom ? `${idx * 25}ms` : `${idx * 90}ms`,
-                    }} />
-                ));
-              })}
-            </svg>
-          )}
-
-          {showCompleteBoom && (
-            <div style={{
-              gridColumn: '1 / -1', gridRow: '1 / -1', pointerEvents: 'none', position: 'relative', zIndex: 6,
-              background: 'radial-gradient(circle, rgba(232,185,35,.55) 0%, transparent 70%)',
-              animation: 'lc-boomflash 1.1s ease-out both',
-            }} />
-          )}
         </div>
-
-        {showCompleteBoom && (
-          <div style={{
-            position: 'absolute', bottom: '8%', left: '50%', transform: 'translateX(-50%)',
-            pointerEvents: 'none', textAlign: 'center', animation: 'lc-completebanner 3.2s ease-out both',
-          }}>
-            <div style={{
-              fontFamily: "'Poppins',sans-serif", fontWeight: 800, letterSpacing: '-0.02em',
-              fontSize: 'clamp(28px,4vw,48px)', color: '#f5f0e8', textShadow: '0 0 40px rgba(232,185,35,.6)',
-            }}>
-              The picture is complete
-            </div>
-          </div>
-        )}
 
         <div style={{ position: 'absolute', top: 90, right: 26, display: 'flex', flexDirection: 'column', gap: 8, width: 190 }}>
           {jigsawTeams.map((t) => (
