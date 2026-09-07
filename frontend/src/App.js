@@ -762,7 +762,7 @@ function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
   );
 }
 
-// Crops one tile out of /public/Puzzle.png for a given board slot.
+// Crops one tile out of /public/final-puzzle.jpg for a given board slot.
 // The image is a fixed 5-across x 4-down grid — this only shows correctly
 // once a piece is actually placed, since slot position is public at that
 // point but not before (matches "no preview of the finished artwork").
@@ -777,7 +777,7 @@ function PuzzleCrop({ slot, size, fill, rounded = 10, style }) {
       ...dims,
       borderRadius: rounded,
       overflow: 'hidden',
-      backgroundImage: "url('/Puzzle.png')",
+      backgroundImage: "url('/final-puzzle.jpg')",
       backgroundSize: '500% 400%',
       backgroundPosition: `${bgPosX}% ${bgPosY}%`,
       backgroundRepeat: 'no-repeat',
@@ -868,8 +868,28 @@ function ProjectorView() {
       setPuzzleAspect(clamped);
     };
     img.onerror = () => setPuzzleAspect(1.25); // couldn't load — keep the safe 5:4 fallback
-    img.src = '/Puzzle.png';
+    img.src = '/final-puzzle.jpg';
   }, []);
+
+  // Pixel size computed directly in JS, not left to CSS aspect-ratio + calc()
+  // to resolve on its own — that combination was silently collapsing the
+  // grid to a sliver in some cases. This is deterministic and always sane.
+  const [gridSize, setGridSize] = useState({ width: 900, height: 720 });
+  useEffect(() => {
+    function recompute() {
+      const availW = window.innerWidth * 0.76;
+      const availH = window.innerHeight - 130;
+      let w = Math.min(availW, availH * puzzleAspect, 1100);
+      let h = w / puzzleAspect;
+      // Hard floor — the grid must never render smaller than this,
+      // regardless of what any calculation above produces.
+      if (h < 300) { h = 300; w = h * puzzleAspect; }
+      setGridSize({ width: Math.round(w), height: Math.round(h) });
+    }
+    recompute();
+    window.addEventListener('resize', recompute);
+    return () => window.removeEventListener('resize', recompute);
+  }, [puzzleAspect]);
 
   // Fires once, right when the board actually finishes — a quick flash and
   // a connecting mesh sweeping across every piece, then settles into a
@@ -1345,11 +1365,10 @@ function ProjectorView() {
         <div style={{
           position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
           display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gridTemplateRows: 'repeat(4, 1fr)', gap: 10,
-          // Bounded by width AND height (whichever is tighter), and shaped to
-          // the artwork's real aspect ratio (detected on load) rather than an
-          // assumed 5:4 — this is what was distorting/compressing every tile.
-          width: `min(76vw, calc((100vh - 130px) * ${puzzleAspect}), 1100px)`,
-          aspectRatio: puzzleAspect,
+          // Explicit pixel size computed in JS (see gridSize above) — CSS
+          // aspect-ratio + calc() was silently collapsing this to a sliver
+          // in some cases, this is deterministic and can't do that.
+          width: gridSize.width, height: gridSize.height,
         }}>
           {jigsawPieces.map((p) => {
             const teamColour = jigsawTeams.find((t) => t.number === p.ownerTeamNumber)?.colour;
