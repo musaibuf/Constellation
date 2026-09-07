@@ -212,6 +212,50 @@ function nonRocketPieces() { return jigsawPieces.filter(p => !ROCKET_SLOTS.inclu
 // once. Falls back to reusing members cyclically for teams too small to give
 // everyone a distinct role (e.g. a 1-person test team), rather than leaving
 // a role unassigned.
+// Repairs role assignments after the facilitator moves or removes someone
+// mid-jigsaw. Roles are stored by participant id, so without this a moved or
+// deleted captain leaves their old team permanently unable to place, and a
+// moved/deleted code-holder makes that piece unplaceable — which stalls Act 1
+// forever and the rockets never unlock. Only reassigns genuinely orphaned
+// roles, so people already walking around with a valid code keep it.
+function repairJigsawRoles() {
+  if (session.activity !== 'jigsaw' || jigsawPieces.length === 0) return;
+  const changedTeams = new Set();
+
+  function memberOf(teamNumber) {
+    const team = teams.find(t => t.number === teamNumber);
+    if (!team || team.memberIds.length === 0) return null;
+    return team.memberIds[Math.floor(Math.random() * team.memberIds.length)];
+  }
+  function isOnTeam(participantId, teamNumber) {
+    const team = teams.find(t => t.number === teamNumber);
+    return !!team && team.memberIds.includes(participantId);
+  }
+
+  teams.forEach(team => {
+    if (!team.captainId || !team.memberIds.includes(team.captainId)) {
+      team.captainId = memberOf(team.number);
+      changedTeams.add(team.number);
+    }
+  });
+
+  jigsawPieces.forEach(piece => {
+    if (piece.code === null) return; // rocket pieces have no holder/decoder
+    if (!piece.codeHolderId || !isOnTeam(piece.codeHolderId, piece.holderTeamNumber)) {
+      piece.codeHolderId = memberOf(piece.holderTeamNumber);
+      changedTeams.add(piece.holderTeamNumber);
+    }
+    if (!piece.slotKnowerId || !isOnTeam(piece.slotKnowerId, piece.decoderTeamNumber)) {
+      piece.slotKnowerId = memberOf(piece.decoderTeamNumber);
+      changedTeams.add(piece.decoderTeamNumber);
+    }
+  });
+
+  if (changedTeams.size > 0) {
+    io.emit('jigsaw_refresh', { teamNumbers: [...changedTeams] });
+  }
+}
+
 function assignJigsawRoles() {
   const cursors = {};
   teams.forEach(team => {
@@ -356,6 +400,7 @@ io.on('connection', (socket) => {
     target.memberIds.push(participantId);
     participants[participantId].teamId = teamId;
     io.emit('teams_formed', { teams, participants });
+    repairJigsawRoles(); // no-op unless the jigsaw is running
   });
 
   socket.on('facilitator_delete_participant', ({ participantId }) => {
@@ -363,6 +408,10 @@ io.on('connection', (socket) => {
     answers = answers.filter(a => a.participantId !== participantId);
     teams.forEach(t => { t.memberIds = t.memberIds.filter(id => id !== participantId); });
     io.emit('participants_update', participants);
+    // Team rosters changed too — without this, every phone keeps showing the
+    // removed person in their teammate list.
+    if (teams.length > 0) io.emit('teams_formed', { teams, participants });
+    repairJigsawRoles(); // no-op unless the jigsaw is running
   });
 
   socket.on('facilitator_reset', () => {
