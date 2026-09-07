@@ -574,7 +574,9 @@ function JigsawParticipant({ team, teammates = [] }) {
         {tab === 'board' && (
           <div>
             <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
-              Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.
+              {board.length > 0 && board.every((r) => r.isRocket)
+                ? "Your team owns two sections of the puzzle. Both are part of the rocket — you'll place them at the very end, in front of everyone. No codes to collect."
+                : 'Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.'}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {board.map((row, idx) => (
@@ -599,7 +601,10 @@ function JigsawParticipant({ team, teammates = [] }) {
                           <path d="M8 11V7a4 4 0 018 0v4" />
                         </svg>
                       </div>
-                      <p className="lc-faint">This piece unlocks once the rest of the board is done.</p>
+                      <p className="lc-faint" style={{ marginBottom: 6 }}>This piece unlocks once the rest of the board is done.</p>
+                      <p className="lc-faint" style={{ marginTop: 0, color: 'var(--gold)', opacity: 0.75 }}>
+                        Meanwhile, other teams need what's on your other tabs.
+                      </p>
                     </div>
                   ) : row.isRocket ? (
                     <div style={{ textAlign: 'center' }}>
