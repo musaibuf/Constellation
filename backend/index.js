@@ -54,16 +54,6 @@ const SLOT_VALUES = {
   20: 'We Deliver Excellence',
 };
 
-// Icon ids are still shuffled fresh each session — they're only an opaque
-// matching key between a piece's holder and decoder, unrelated to its real
-// position, so randomizing them carries no risk and keeps the holder/legend
-// tabs unchanged. Must match the frontend's ICONS map keys.
-const ICON_IDS = [
-  'handshake', 'target', 'flame', 'compass', 'chat', 'sprout', 'tools',
-  'palette', 'bolt', 'puzzle', 'mirror', 'bridge', 'megaphone', 'clock',
-  'globe', 'brain', 'heart',
-];
-
 // ============================================================
 // STATE (flat, in-memory)
 // ============================================================
@@ -178,10 +168,6 @@ function randomCode() {
 // This guarantees owner, holder and decoder are always three
 // different teams, forming one closed loop with no shortcuts.
 function generateJigsawPieces() {
-  const nonRocketSlots = [];
-  for (let s = 1; s <= 20; s++) if (!ROCKET_SLOTS.includes(s)) nonRocketSlots.push(s);
-  const shuffledIcons = shuffle(ICON_IDS); // random per session — matching key only
-
   const pieces = [];
   for (let slot = 1; slot <= 20; slot++) {
     const ownerTeamNumber = slot <= 10 ? slot : slot - 10;
@@ -189,20 +175,32 @@ function generateJigsawPieces() {
     const holderTeamNumber = ((ownerTeamNumber - 1 + 3) % 10) + 1;
     const decoderTeamNumber = isRocket ? null : ((ownerTeamNumber - 1 + 7) % 10) + 1;
 
-    let icon = null, valueText = null, code = null;
+    let valueText = null, code = null;
     if (!isRocket) {
-      const idx = nonRocketSlots.indexOf(slot);
-      icon = shuffledIcons[idx];
       valueText = SLOT_VALUES[slot]; // fixed — matches the real artwork
       code = randomCode();
     }
 
     pieces.push({
       slot, ownerTeamNumber, holderTeamNumber, decoderTeamNumber,
-      icon, valueText, code, placed: false, placedAt: null, locked: isRocket,
+      valueText, code, placed: false, placedAt: null, locked: isRocket,
     });
   }
   return pieces;
+}
+
+// A team's two owned pieces are "Section 1" and "Section 2" — lower slot
+// number first. This is the shared reference point between a team's own
+// board, and how other teams describe that team's pieces on their holding
+// and legend tabs, replacing the old icon-matching mechanic entirely.
+function sectionsForOwner(ownerTeamNumber) {
+  const ownedSlots = jigsawPieces
+    .filter(p => p.ownerTeamNumber === ownerTeamNumber)
+    .map(p => p.slot)
+    .sort((a, b) => a - b);
+  const map = {};
+  ownedSlots.forEach((s, i) => { map[s] = i + 1; });
+  return map;
 }
 
 function nonRocketPieces() { return jigsawPieces.filter(p => !ROCKET_SLOTS.includes(p.slot)); }
@@ -213,12 +211,11 @@ function projectorJigsawState() {
     pieces: jigsawPieces.map(p => ({
       slot: p.slot,
       placed: p.placed,
-      icon: p.placed ? p.icon : null,
       valueText: p.placed ? p.valueText : null,
       ownerTeamNumber: p.ownerTeamNumber,
       locked: p.locked,
       // Once placed, the frontend crops the real artwork at this slot's
-      // grid position directly — no separate rocket rendering data needed.
+      // grid position directly — no icon data needed for reveal.
       isRocket: ROCKET_SLOTS.includes(p.slot),
     })),
     teams: teams.map(t => ({
@@ -229,15 +226,16 @@ function projectorJigsawState() {
 }
 
 function teamJigsawState(teamNumber) {
+  const ownSections = sectionsForOwner(teamNumber);
   const board = jigsawPieces
     .filter(p => p.ownerTeamNumber === teamNumber)
     .map(p => {
       const isRocket = p.code === null;
       return {
+        section: ownSections[p.slot],
         // Rocket slots have no code/decoder dependency, so the team's own
         // fixed slot number is safe to reveal even before placement.
         slot: (p.placed || isRocket) ? p.slot : null,
-        icon: p.placed ? p.icon : null,
         valueText: p.placed ? p.valueText : null,
         placed: p.placed,
         locked: p.locked,
@@ -246,10 +244,16 @@ function teamJigsawState(teamNumber) {
     });
   const holding = jigsawPieces
     .filter(p => p.holderTeamNumber === teamNumber && p.code !== null) // rocket pieces need no holder
-    .map(p => ({ icon: p.icon, code: p.code, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed }));
+    .map(p => ({
+      section: sectionsForOwner(p.ownerTeamNumber)[p.slot],
+      code: p.code, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed,
+    }));
   const legend = jigsawPieces
     .filter(p => p.decoderTeamNumber === teamNumber)
-    .map(p => ({ icon: p.icon, slot: p.slot, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed }));
+    .map(p => ({
+      section: sectionsForOwner(p.ownerTeamNumber)[p.slot],
+      slot: p.slot, ownerTeamNumber: p.ownerTeamNumber, placed: p.placed,
+    }));
   return { board, holding, legend };
 }
 
@@ -393,7 +397,7 @@ io.on('connection', (socket) => {
     piece.placedAt = Date.now();
 
     io.emit('jigsaw_piece_placed', {
-      slot: piece.slot, icon: piece.icon, valueText: piece.valueText, ownerTeamNumber: piece.ownerTeamNumber,
+      slot: piece.slot, valueText: piece.valueText, ownerTeamNumber: piece.ownerTeamNumber,
       isRocket: ROCKET_SLOTS.includes(piece.slot),
     });
     io.emit('jigsaw_refresh', { teamNumbers: [piece.ownerTeamNumber, piece.holderTeamNumber, piece.decoderTeamNumber].filter(Boolean) });
@@ -420,7 +424,8 @@ io.on('connection', (socket) => {
   socket.on('facilitator_jigsaw_hint', ({ teamNumber }) => {
     const piece = jigsawPieces.find(p => p.ownerTeamNumber === teamNumber && !p.placed && !p.locked && p.code !== null);
     if (!piece) return;
-    io.emit('jigsaw_hint', { teamNumber, slot: piece.slot, icon: piece.icon, code: piece.code });
+    const section = sectionsForOwner(teamNumber)[piece.slot];
+    io.emit('jigsaw_hint', { teamNumber, section, slot: piece.slot, code: piece.code });
   });
 });
 
