@@ -506,9 +506,9 @@ function JigsawParticipant({ team, teammates = [] }) {
       setErrors((e) => ({ ...e, active: message }));
       setTimeout(() => setErrors((e) => ({ ...e, active: null })), 3500);
     });
-    socket.on('jigsaw_hint', ({ teamNumber, slot, code }) => {
+    socket.on('jigsaw_hint', ({ teamNumber, section, slot, code }) => {
       if (teamNumber !== team.number) return;
-      setHintBanner(`Hint: slot ${slot}, code ${code}`);
+      setHintBanner(`Hint — Section ${section}: slot ${slot}, code ${code}`);
       setTimeout(() => setHintBanner(null), 10000);
     });
     socket.on('jigsaw_act2_unlocked', requestState);
@@ -567,66 +567,77 @@ function JigsawParticipant({ team, teammates = [] }) {
         <div className="lc-tabs" style={{ marginBottom: 20 }}>
           <button className={`lc-tab ${tab === 'board' ? 'active' : ''}`} onClick={() => setTab('board')}>Our board</button>
           <button className={`lc-tab ${tab === 'holding' ? 'active' : ''}`} onClick={() => setTab('holding')}>We're holding</button>
-          <button className={`lc-tab ${tab === 'legend' ? 'active' : ''}`} onClick={() => setTab('legend')}>Our legend</button>
+          <button className={`lc-tab ${tab === 'legend' ? 'active' : ''}`} onClick={() => setTab('legend')}>We know slots</button>
           <button className={`lc-tab ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>My team</button>
         </div>
 
         {tab === 'board' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {board.map((row, idx) => (
-              <div key={idx} className="lc-card" style={{ padding: 20 }}>
-                {row.placed ? (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                      <PuzzleCrop slot={row.slot} size={72} rounded={12} style={{ border: '1px solid rgba(232,185,35,.35)' }} />
+          <div>
+            <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
+              Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {board.map((row, idx) => (
+                <div key={idx} className="lc-card" style={{ padding: 20 }}>
+                  <p className="lc-faint" style={{ marginTop: 0, marginBottom: 12, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.02em' }}>
+                    Section {row.section}
+                  </p>
+                  {row.placed ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                        <PuzzleCrop slot={row.slot} size={72} rounded={12} style={{ border: '1px solid rgba(232,185,35,.35)' }} />
+                      </div>
+                      <p style={{ margin: 0, fontWeight: 600 }}>{row.isRocket ? 'Part of the rocket' : row.valueText}</p>
+                      <span className="lc-badge" style={{ marginTop: 10 }}>Slot {row.slot} · Placed</span>
                     </div>
-                    <p style={{ margin: 0, fontWeight: 600 }}>{row.isRocket ? 'Part of the rocket' : row.valueText}</p>
-                    <span className="lc-badge" style={{ marginTop: 10 }}>Slot {row.slot} · Placed</span>
-                  </div>
-                ) : row.locked ? (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, color: 'var(--ink-faint)' }}>
-                      <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke="currentColor"
-                        strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="5" y="11" width="14" height="10" rx="2" />
-                        <path d="M8 11V7a4 4 0 018 0v4" />
-                      </svg>
+                  ) : row.locked ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, color: 'var(--ink-faint)' }}>
+                        <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke="currentColor"
+                          strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="5" y="11" width="14" height="10" rx="2" />
+                          <path d="M8 11V7a4 4 0 018 0v4" />
+                        </svg>
+                      </div>
+                      <p className="lc-faint">This piece unlocks once the rest of the board is done.</p>
                     </div>
-                    <p className="lc-faint">This piece unlocks once the rest of the board is done.</p>
-                  </div>
-                ) : row.isRocket ? (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
-                      <RocketIcon part="body" size={40} />
+                  ) : row.isRocket ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
+                        <RocketIcon part="body" size={40} />
+                      </div>
+                      <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
+                      <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
+                        Place slot {row.slot}
+                      </button>
                     </div>
-                    <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
-                    <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
-                      Place slot {row.slot}
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="lc-faint" style={{ marginTop: 0, marginBottom: 12 }}>Piece {idx + 1} of {board.length}</p>
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                      <input className="lc-input" placeholder="Slot #" inputMode="numeric"
-                        value={inputs[idx]?.slot || ''} onChange={(e) => updateInput(idx, 'slot', e.target.value)} />
-                      <input className="lc-input" placeholder="Code" style={{ textTransform: 'uppercase' }}
-                        value={inputs[idx]?.code || ''} onChange={(e) => updateInput(idx, 'code', e.target.value)} />
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                        <input className="lc-input" placeholder="Slot #" inputMode="numeric"
+                          value={inputs[idx]?.slot || ''} onChange={(e) => updateInput(idx, 'slot', e.target.value)} />
+                        <input className="lc-input" placeholder="Code" style={{ textTransform: 'uppercase' }}
+                          value={inputs[idx]?.code || ''} onChange={(e) => updateInput(idx, 'code', e.target.value)} />
+                      </div>
+                      <button className="lc-btn lc-btn-primary" style={{ width: '100%' }} onClick={() => submitPlacement(idx)}>Place piece</button>
                     </div>
-                    <button className="lc-btn lc-btn-primary" style={{ width: '100%' }} onClick={() => submitPlacement(idx)}>Place piece</button>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {tab === 'holding' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these codes to the owning team when they find you.</p>
-            {holding.map((h, i) => (
+            {holding.length === 0 ? (
+              <div className="lc-card" style={{ padding: '16px 18px' }}>
+                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You aren't holding anyone's sections right now.</p>
+              </div>
+            ) : holding.map((h, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: h.placed ? 0.4 : 1 }}>
-                <span style={{ color: 'var(--gold)', display: 'flex' }}><JigIcon id={h.icon} size={26} /></span>
+                <span style={{ fontWeight: 600 }}>Section {h.section}</span>
                 <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>{h.code}</span>
                 <span className="lc-faint" style={{ margin: 0 }}>Team {h.ownerTeamNumber}</span>
               </div>
@@ -637,9 +648,13 @@ function JigsawParticipant({ team, teammates = [] }) {
         {tab === 'legend' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p className="lc-faint" style={{ marginTop: 0 }}>Read these slot numbers to the owning team when they find you.</p>
-            {legend.map((l, i) => (
+            {legend.length === 0 ? (
+              <div className="lc-card" style={{ padding: '16px 18px' }}>
+                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You aren't decoding anyone's slots right now.</p>
+              </div>
+            ) : legend.map((l, i) => (
               <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: l.placed ? 0.4 : 1 }}>
-                <span style={{ color: 'var(--gold)', display: 'flex' }}><JigIcon id={l.icon} size={26} /></span>
+                <span style={{ fontWeight: 600 }}>Section {l.section}</span>
                 <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700 }}>Slot {l.slot}</span>
                 <span className="lc-faint" style={{ margin: 0 }}>Team {l.ownerTeamNumber}</span>
               </div>
@@ -701,50 +716,13 @@ function QrToggle({ joinUrl }) {
   );
 }
 
-/* ============================================================
-   JIGSAW ICON SET
-   Line-drawn SVGs rather than emoji: emoji render differently on every
-   OS, look inconsistent at projector scale, and read as clip-art. These
-   inherit currentColor so each piece takes its team colour.
-   Ids must match `icon` values in the backend's JIGSAW_CONTENT.
-   ============================================================ */
-const ICONS = {
-  handshake: 'M3 12l3-3 4 3 2-2 4 3 5-5M3 12l4 4 3-2 3 3 4-4',
-  target: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 4.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm0 3.5a1 1 0 100 2 1 1 0 000-2z',
-  flame: 'M12 3c3 4 5 6 5 9a5 5 0 01-10 0c0-2 1-3.5 2.5-5C10 8.5 11 6 12 3zm0 10.5a2 2 0 002 2',
-  compass: 'M12 3a9 9 0 100 18 9 9 0 000-18zm3.5 5.5l-2 5-5 2 2-5z',
-  chat: 'M4 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H9l-5 4V6zm4 4h8M8 13h5',
-  sprout: 'M12 21v-8m0 0c0-3-2-5-5-5 0 3 2 5 5 5zm0 0c0-3 2-5 5-5 0 3-2 5-5 5z',
-  tools: 'M4 20l7-7m-2-4L5 5 3 7l4 4m10 9l-7-7m4-2l4-4 2 2-4 4',
-  palette: 'M12 3a9 9 0 000 18c1 0 1.5-.8 1.5-1.5 0-1.5 1-2 2.5-2H18a3 3 0 003-3c0-6-4.5-11.5-9-11.5zM7.5 12a1 1 0 100-2 1 1 0 000 2zm3-3.5a1 1 0 100-2 1 1 0 000 2zm5 0a1 1 0 100-2 1 1 0 000 2z',
-  bolt: 'M13 2L4 14h6l-1 8 9-12h-6z',
-  puzzle: 'M9 4h6v2.5a2 2 0 104 0V9h2.5a2 2 0 100 4H21v6h-6v-2.5a2 2 0 10-4 0V19H5v-6h2.5a2 2 0 100-4H5V4h4z',
-  mirror: 'M12 3c3.5 0 6 3 6 6.5S15.5 16 12 16s-6-3-6-6.5S8.5 3 12 3zm0 13v5m-3 0h6',
-  bridge: 'M3 17V9m18 8V9M3 12c4-5 14-5 18 0M8 17v-4m8 4v-4M2 17h20',
-  megaphone: 'M4 10v4l10 5V5L4 10zm10 0h4a3 3 0 010 6h-4M7 15v4h3v-3',
-  clock: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 4v5l3.5 2',
-  globe: 'M12 3a9 9 0 100 18 9 9 0 000-18zm0 0c-3 3-3 15 0 18m0-18c3 3 3 15 0 18M3.5 9h17m-17 6h17',
-  brain: 'M9 4a3 3 0 00-3 3 3 3 0 00-1 5.5A3 3 0 007 17a3 3 0 005 1 3 3 0 005-1 3 3 0 002-4.5A3 3 0 0018 7a3 3 0 00-3-3 3 3 0 00-3 1.5A3 3 0 009 4zm3 1.5v13',
-  heart: 'M12 20s-7-4.5-7-9.5a4 4 0 017-2.5 4 4 0 017 2.5c0 5-7 9.5-7 9.5z',
-};
-
 // Rocket spine segments (slots 3, 8, 13) — wordless by design, per the brief.
+// Used only as a pre-placement placeholder before the real artwork reveals.
 const ROCKET_PARTS = {
   nose: 'M12 2c2.5 3 4 6 4 9H8c0-3 1.5-6 4-9zm0 5.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z',
   body: 'M8 2h8v16H8V2zm0 5L4 11v6l4-3m8-8l4 4v6l-4-3m-6 5h4',
   flame: 'M8 2h8v6H8V2zm4 6c2 3 3.5 5 3.5 7.5a3.5 3.5 0 01-7 0C8.5 13 10 11 12 8zm-4 2l-2 4m10-4l2 4',
 };
-
-function JigIcon({ id, size = 28, strokeWidth = 1.7, style }) {
-  const d = ICONS[id];
-  if (!d) return null;
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d={d} />
-    </svg>
-  );
-}
 
 function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
   const d = ROCKET_PARTS[part] || ROCKET_PARTS.body;
@@ -756,7 +734,7 @@ function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
   );
 }
 
-// Crops one tile out of /public/Puzzle.png for a given board slot.
+// Crops one tile out of /public/final-puzzle.jpg for a given board slot.
 // The image is a fixed 5-across x 4-down grid — this only shows correctly
 // once a piece is actually placed, since slot position is public at that
 // point but not before (matches "no preview of the finished artwork").
@@ -771,7 +749,7 @@ function PuzzleCrop({ slot, size, fill, rounded = 10, style }) {
       ...dims,
       borderRadius: rounded,
       overflow: 'hidden',
-      backgroundImage: "url('/Puzzle.png')",
+      backgroundImage: "url('/final-puzzle.jpg')",
       backgroundSize: '500% 400%',
       backgroundPosition: `${bgPosX}% ${bgPosY}%`,
       backgroundRepeat: 'no-repeat',
@@ -851,7 +829,7 @@ function ProjectorView() {
   useEffect(() => {
     const img = new Image();
     img.onload = () => { if (img.naturalWidth && img.naturalHeight) setPuzzleAspect(img.naturalWidth / img.naturalHeight); };
-    img.src = '/Puzzle.png';
+    img.src = '/final-puzzle.jpg';
   }, []);
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
