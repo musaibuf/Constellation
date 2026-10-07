@@ -12,6 +12,7 @@ const socket = io(SERVER_URL, {
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
+  reconnectionDelayMax: 3000, // come back fast after a phone wakes up
 });
 
 /* ============================================================
@@ -138,17 +139,8 @@ const THEME_CSS = `
   .lc-tab { flex:1; padding:11px; border-radius:10px; border:none; background:transparent; color:var(--ink-dim); font-size:14px; font-weight:600; cursor:pointer; transition:all .2s; }
   .lc-tab.active { background:linear-gradient(135deg,var(--carnelian-bright),var(--carnelian)); color:#fff; }
 
-  .lc-jig-slot {
-    aspect-ratio: 1; border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    position:relative; overflow:hidden; border:1.5px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02);
-  }
-  .lc-jig-slot.placed { animation: lc-glowpop 1s ease-out both; }
-  .lc-jig-slot.locked::after {
-    content:''; position:absolute; inset:0;
-    background:
-      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e8b923' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><rect x='5' y='11' width='14' height='10' rx='2'/><path d='M8 11V7a4 4 0 018 0v4'/></svg>") center / 34% no-repeat,
-      rgba(0,0,0,.35);
-  }
+  .lc-quarter-open { animation: lc-quarter-in .9s ease-out both; }
+  @keyframes lc-quarter-in { 0% { opacity:0; filter:brightness(2.2); transform:scale(.88); } 60% { opacity:1; filter:brightness(1.4); } 100% { opacity:1; filter:none; transform:none; } }
 
   .lc-modal-backdrop {
     position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
@@ -206,7 +198,7 @@ function ConnectionPill() {
   );
 }
 
-/* Styled confirmation dialog — replaces window.confirm, which renders as a
+/* Styled confirmation dialog, replaces window.confirm, which renders as a
    raw browser alert with the Render URL in it and looks broken on a screen
    the facilitator may be sharing. */
 function ConfirmModal({ open, title, message, confirmLabel = 'Confirm', danger, onConfirm, onCancel }) {
@@ -237,29 +229,42 @@ function ConfirmModal({ open, title, message, confirmLabel = 'Confirm', danger, 
   );
 }
 
-function useElapsedClock(startedAt, running) {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!running || !startedAt) return;
-    const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [startedAt, running]);
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
 /* ============================================================
    PARTICIPANT VIEW (phone)
    ============================================================ */
+// The participant id is what keeps someone "the same person" across a
+// refresh, a locked phone, or switching apps. It is stored in three places
+// so losing one (private mode, in-app browsers that wipe localStorage,
+// storage blocked) doesn't turn them into a stranger: localStorage, a
+// long-lived cookie, and the page URL hash (which survives a refresh even
+// where storage doesn't).
+const PID_KEY = 'constellation_participant_id';
+
+function readStoredParticipantId() {
+  try { const v = localStorage.getItem(PID_KEY); if (v) return v; } catch (e) { /* storage blocked */ }
+  try {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + PID_KEY + '=([^;]+)'));
+    if (m) return decodeURIComponent(m[1]);
+  } catch (e) { /* ignore */ }
+  const h = window.location.hash.match(/[#&]p=([^&]+)/);
+  if (h) return decodeURIComponent(h[1]);
+  return null;
+}
+
+function persistParticipantId(id) {
+  try { localStorage.setItem(PID_KEY, id); } catch (e) { /* storage blocked */ }
+  try { document.cookie = `${PID_KEY}=${encodeURIComponent(id)}; max-age=${60 * 60 * 24 * 30}; path=/; SameSite=Lax`; } catch (e) { /* ignore */ }
+  try {
+    if (window.location.pathname === '/' || window.location.pathname === '') {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#p=${encodeURIComponent(id)}`);
+    }
+  } catch (e) { /* ignore */ }
+}
+
 function getOrCreateParticipantId() {
-  let id = localStorage.getItem('constellation_participant_id');
-  if (!id) {
-    id = 'p_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem('constellation_participant_id', id);
-  }
+  let id = readStoredParticipantId();
+  if (!id) id = 'p_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  persistParticipantId(id); // re-write everywhere so all three stay in sync
   return id;
 }
 
@@ -267,6 +272,7 @@ function ParticipantView() {
   const [participantId] = useState(getOrCreateParticipantId);
   const [screen, setScreen] = useState('join'); // join | waiting | quiz | submitted | reveal
   const [name, setName] = useState('');
+  const [gender, setGender] = useState('');
   const [joinError, setJoinError] = useState('');
   const [joinedCount, setJoinedCount] = useState(0);
   const [questions, setQuestions] = useState([]);
@@ -288,7 +294,7 @@ function ParticipantView() {
     if (!me) { setScreen('join'); return; }
     setMyName(me.name);
 
-    if (state.session.state === 'teams_formed' || state.session.activity === 'jigsaw') {
+    if (state.session.state === 'teams_formed' || state.session.activity === 'puzzle') {
       const myTeam = state.teams.find((t) => t.id === me.teamId);
       if (myTeam) {
         setTeam(myTeam);
@@ -314,9 +320,41 @@ function ParticipantView() {
     setScreen('waiting');
   }, [participantId]);
 
+  // Tell the server who this phone is on every (re)connect, and pull a fresh
+  // snapshot whenever the tab comes back to the foreground, mobile browsers
+  // freeze or drop the connection while you're in another app.
+  useEffect(() => {
+    const identify = () => socket.emit('identify', { id: participantId });
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!socket.connected) socket.connect();
+      else { identify(); socket.emit('request_sync'); }
+    };
+    socket.on('connect', identify);
+    if (socket.connected) identify();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      socket.off('connect', identify);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
+  }, [participantId]);
+
   useEffect(() => {
     socket.on('state_sync', restoreFromState);
-    socket.on('joined', (p) => { setMyName(p.name); setScreen('waiting'); });
+    socket.on('joined', (p) => {
+      // Server matched this name to an existing person (lost-storage
+      // recovery), adopt that identity and reload straight into it.
+      if (p && p.id && p.id !== participantId) {
+        persistParticipantId(p.id);
+        window.location.reload();
+        return;
+      }
+      setMyName(p.name); setScreen('waiting');
+    });
     socket.on('answer_confirmed', () => setPending(false));
     socket.on('join_error', ({ message }) => setJoinError(message));
     socket.on('participants_update', (p) => setJoinedCount(Object.keys(p).length));
@@ -336,7 +374,7 @@ function ParticipantView() {
         setScreen((s) => (s === 'waiting' ? 'quiz' : s));
       }
     });
-    socket.on('jigsaw_started', () => setActivity('jigsaw'));
+    socket.on('puzzle_started', () => setActivity('puzzle'));
     socket.on('reset', () => {
       setScreen('join'); setQuestions([]); setQuizIndex(0); setAnsweredSet(new Set());
       setSelectedOption(null); setLocked(false); setTeam(null); setTeammates([]); setActivity('constellation');
@@ -345,7 +383,7 @@ function ParticipantView() {
       socket.off('state_sync', restoreFromState);
       socket.off('joined'); socket.off('join_error'); socket.off('participants_update');
       socket.off('teams_formed'); socket.off('reset');
-      socket.off('answer_confirmed'); socket.off('session_update'); socket.off('jigsaw_started');
+      socket.off('answer_confirmed'); socket.off('session_update'); socket.off('puzzle_started');
     };
   }, [participantId, restoreFromState]);
 
@@ -353,8 +391,9 @@ function ParticipantView() {
     e.preventDefault();
     const trimmed = name.trim();
     if (trimmed.length === 0 || trimmed.length > 20) { setJoinError('Enter 1-20 characters.'); return; }
+    if (!gender) { setJoinError('Please select your gender.'); return; }
     setJoinError('');
-    socket.emit('join', { id: participantId, name: trimmed });
+    socket.emit('join', { id: participantId, name: trimmed, gender });
   }
 
   function handleAnswer(optionIndex) {
@@ -378,9 +417,9 @@ function ParticipantView() {
     return () => clearTimeout(confirmTimeout);
   }
 
-  // Once a team is known and the room has moved to jigsaw, hand off entirely.
-  if (team && activity === 'jigsaw') {
-    return <JigsawParticipant team={team} teammates={teammates} participantId={participantId} />;
+  // Once a team is known and the room has moved to the puzzle, hand off entirely.
+  if (team && activity === 'puzzle') {
+    return <PuzzleParticipant team={team} teammates={teammates} participantId={participantId} />;
   }
 
   const question = questions[quizIndex];
@@ -399,6 +438,15 @@ function ParticipantView() {
             <p className="lc-sub" style={{ marginBottom: 26 }}>First name plus last initial</p>
             <input className="lc-input" value={name} maxLength={20} placeholder="e.g. Ahmed K"
               onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
+            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              {[['male', 'Male'], ['female', 'Female']].map(([val, label]) => (
+                <button key={val} type="button" onClick={() => setGender(val)}
+                  className={`lc-option ${gender === val ? 'lc-selected' : ''}`}
+                  style={{ textAlign: 'center', padding: '16px 12px' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
             {joinError && <p style={{ color: '#ff6b6b', fontSize: 14, marginTop: 10 }}>{joinError}</p>}
             <button className="lc-btn lc-btn-primary" type="submit" style={{ width: '100%', marginTop: 18 }}>Join now</button>
             {joinedCount > 0 && <p className="lc-faint">{joinedCount} already in the room</p>}
@@ -478,308 +526,910 @@ function ParticipantView() {
 }
 
 /* ============================================================
-   JIGSAW — PARTICIPANT (shared team state, any member can act)
+   ACCOUNTABILITY PUZZLE: SHARED PIECES
    ============================================================ */
-function JigsawParticipant({ team, teammates = [], participantId }) {
-  const [tab, setTab] = useState('board');
-  const [board, setBoard] = useState([]);
-  const [holding, setHolding] = useState([]);
-  const [legend, setLegend] = useState([]);
-  const [isCaptain, setIsCaptain] = useState(false);
-  const [captainName, setCaptainName] = useState(null);
-  const [errors, setErrors] = useState({});
-  const [inputs, setInputs] = useState({}); // { rowIndex: { code, slot } }
-  const [hintBanner, setHintBanner] = useState(null);
+const PUZZLE_IMAGE = '/kfc-puzzle.png';
+const BOARD_COLS = 5;
+const BOARD_ROWS = 4;
 
-  const requestState = useCallback(() => {
-    socket.emit('jigsaw_get_team_state', { teamNumber: team.number, participantId });
-  }, [team.number, participantId]);
+const BEHAVIOR_META = {
+  'Own It': { colour: '#e8571a', icon: 'own' },
+  'Show Up': { colour: '#e8b923', icon: 'show' },
+  'Ask for Help': { colour: '#00A3FF', icon: 'ask' },
+  'Lift Others': { colour: '#4CD64C', icon: 'lift' },
+  'Reflect & Learn': { colour: '#B14CFF', icon: 'reflect' },
+};
+const BEHAVIOR_LIST = Object.keys(BEHAVIOR_META);
+
+const ICON_PATHS = {
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>,
+  arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  send: <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" />,
+  users: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
+  captain: <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />,
+  key: <><circle cx="7.5" cy="15.5" r="4.5" /><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  alert: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5v.01" /></>,
+  chevron: <path d="M6 9l6 6 6-6" />,
+  flag: <path d="M5 21V4h12l-2 4 2 4H5" />,
+  puzzle: <path d="M10 3h4v2.5a1.5 1.5 0 003 0V3h4v7h-2.5a1.5 1.5 0 000 3H21v8h-7v-2.5a1.5 1.5 0 00-3 0V21H3v-8h2.5a1.5 1.5 0 000-3H3V3h7z" />,
+  own: <><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" /></>,
+  show: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  ask: <><path d="M21 12a8.5 8.5 0 01-12.3 7.6L3.5 21l1.4-5A8.5 8.5 0 1121 12z" /><path d="M9.7 9.6a2.4 2.4 0 114 1.8c-.9.6-1.7 1.1-1.7 2.1M12 16.3v.01" /></>,
+  lift: <><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
+  reflect: <><path d="M3.5 12a8.5 8.5 0 0114.6-5.9L20.5 8.5" /><path d="M20.5 3.5v5h-5" /><path d="M20.5 12a8.5 8.5 0 01-14.6 5.9L3.5 15.5" /><path d="M3.5 20.5v-5h5" /></>,
+};
+
+function Icon({ name, size = 18, stroke = 1.8, style }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
+      strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>
+      {ICON_PATHS[name] || null}
+    </svg>
+  );
+}
+
+function BehaviorIcon({ behavior, size = 18, stroke = 1.8 }) {
+  const meta = BEHAVIOR_META[behavior];
+  if (!meta) return null;
+  return <span style={{ color: meta.colour, display: 'inline-flex' }}><Icon name={meta.icon} size={size} stroke={stroke} /></span>;
+}
+
+// Reads the real image size once, so the board and every crop keep the
+// artwork's true proportions whatever size kfc-puzzle.png is.
+let puzzleImageRatio = null;
+function usePuzzleImageRatio() {
+  const [ratio, setRatio] = useState(puzzleImageRatio || 1.5);
+  useEffect(() => {
+    if (puzzleImageRatio) return;
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        puzzleImageRatio = img.naturalWidth / img.naturalHeight;
+        setRatio(puzzleImageRatio);
+      }
+    };
+    img.src = PUZZLE_IMAGE;
+  }, []);
+  return ratio;
+}
+
+function useNow(active, interval = 1000) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(id);
+  }, [active, interval]);
+  return now;
+}
+
+// One quarter of a piece = one cell of a 10 x 8 grid over the whole image.
+function quarterCell(slot, q) {
+  const idx = slot - 1;
+  const col = idx % BOARD_COLS, row = Math.floor(idx / BOARD_COLS);
+  return { c: col * 2 + (q % 2), r: row * 2 + Math.floor(q / 2) };
+}
+function cropStyle(c, r) {
+  return {
+    backgroundImage: `url('${PUZZLE_IMAGE}')`,
+    backgroundSize: `${BOARD_COLS * 200}% ${BOARD_ROWS * 200}%`,
+    backgroundPosition: `${(c / (BOARD_COLS * 2 - 1)) * 100}% ${(r / (BOARD_ROWS * 2 - 1)) * 100}%`,
+    backgroundRepeat: 'no-repeat',
+  };
+}
+
+// A team's own piece on the phone: 4 quarters, lit as they unlock.
+function PieceView({ slot, quarters = [], width = 220, colour }) {
+  const ratio = usePuzzleImageRatio();
+  const pieceAspect = (ratio * BOARD_ROWS) / BOARD_COLS; // width / height of one piece
+  const height = width / pieceAspect;
+  const gap = 3;
+  const qw = (width - gap) / 2, qh = (height - gap) / 2;
+  return (
+    <div style={{ position: 'relative', width, height, margin: '0 auto' }}>
+      {[0, 1, 2, 3].map((q) => {
+        const { c, r } = quarterCell(slot, q);
+        const open = !!quarters[q];
+        return (
+          <div key={q} className={open ? 'lc-quarter-open' : ''} style={{
+            position: 'absolute', left: (q % 2) * (qw + gap), top: Math.floor(q / 2) * (qh + gap), width: qw, height: qh,
+            borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${open ? (colour || '#e8b923') + '99' : 'rgba(255,255,255,.08)'}`,
+            ...(open ? cropStyle(c, r) : { background: 'rgba(255,255,255,.035)', color: 'rgba(245,240,232,.28)' }),
+          }}>
+            {!open && <Icon name="lock" size={20} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SectionTitle({ icon, children, colour }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: colour || 'var(--gold)' }}>
+      <Icon name={icon} size={16} />
+      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>{children}</span>
+    </div>
+  );
+}
+
+function TeamTag({ number, colour }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: colour || 'var(--ink)' }}>
+      <span style={{ width: 9, height: 9, borderRadius: '50%', background: colour || '#888', boxShadow: `0 0 8px ${colour || '#888'}` }} />
+      Team {number}
+    </span>
+  );
+}
+
+function CodeDigits({ code, size = 46 }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+      {String(code || '').split('').map((d, i) => (
+        <div key={i} style={{
+          width: size, height: size * 1.2, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: size * 0.62, color: '#1a1410',
+          background: 'linear-gradient(160deg,#f6d77a,var(--gold))', boxShadow: '0 6px 20px rgba(232,185,35,.3)',
+        }}>{d}</div>
+      ))}
+    </div>
+  );
+}
+
+/* ============================================================
+   ACCOUNTABILITY PUZZLE: PARTICIPANT (phone)
+   ============================================================ */
+function PuzzleParticipant({ team, teammates = [], participantId }) {
+  const [me, setMe] = useState(null);
+  const [error, setError] = useState(null);
+  const [picked, setPicked] = useState({});   // "deliveryId:position" -> option index before lock-in
+  const [sent, setSent] = useState({});       // "deliveryId:position" -> true once emitted
+  const [code, setCode] = useState('');
+  const [explain, setExplain] = useState({}); // deliveryId -> [behaviour x4]
+  const [showKey, setShowKey] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const errTimer = useRef(null);
+
+  const requestMe = useCallback(() => {
+    socket.emit('puzzle_get_me', { participantId });
+  }, [participantId]);
 
   useEffect(() => {
-    requestState();
-    socket.on('jigsaw_team_state', (data) => {
-      if (data.teamNumber !== team.number) return;
-      setBoard(data.board); setHolding(data.holding); setLegend(data.legend);
-      setIsCaptain(!!data.isCaptain); setCaptainName(data.captainName || null);
-    });
-    socket.on('jigsaw_refresh', ({ teamNumbers }) => {
-      if (teamNumbers.includes(team.number)) requestState();
-    });
-    socket.on('jigsaw_place_error', ({ message }) => {
-      setErrors((e) => ({ ...e, active: message }));
-      setTimeout(() => setErrors((e) => ({ ...e, active: null })), 3500);
-    });
-    socket.on('jigsaw_hint', ({ teamNumber, section, slot, code }) => {
-      if (teamNumber !== team.number) return;
-      setHintBanner(`Hint — Section ${section}: slot ${slot}, code ${code}`);
-      setTimeout(() => setHintBanner(null), 10000);
-    });
-    socket.on('jigsaw_act2_unlocked', requestState);
-    return () => {
-      socket.off('jigsaw_team_state'); socket.off('jigsaw_refresh'); socket.off('jigsaw_place_error');
-      socket.off('jigsaw_hint'); socket.off('jigsaw_act2_unlocked');
+    requestMe();
+    const onMe = (s) => { if (s) setMe(s); };
+    const onErr = ({ message }) => {
+      setError(message);
+      clearTimeout(errTimer.current);
+      errTimer.current = setTimeout(() => setError(null), 4500);
     };
-  }, [team.number, requestState]);
+    // Re-fetch after any reconnect or return to the tab, so a locked phone or
+    // app switch always comes back to exactly where this person left off.
+    const onVisible = () => { if (document.visibilityState === 'visible') requestMe(); };
+    socket.on('puzzle_me', onMe);
+    socket.on('puzzle_error', onErr);
+    socket.on('connect', requestMe);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      socket.off('puzzle_me', onMe);
+      socket.off('puzzle_error', onErr);
+      socket.off('connect', requestMe);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearTimeout(errTimer.current);
+    };
+  }, [requestMe]);
 
-  function updateInput(idx, field, value) {
-    setInputs((prev) => ({ ...prev, [idx]: { ...prev[idx], [field]: value } }));
+  const verified = me && me.incoming ? me.incoming.find((d) => d.status === 'verified') : null;
+  useEffect(() => { if (verified) setCode(''); }, [verified && verified.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lockedUntil = me ? me.lockedUntil : 0;
+  const now = useNow(!!lockedUntil && lockedUntil > Date.now(), 500);
+  const lockLeft = lockedUntil ? Math.max(0, Math.ceil((lockedUntil - now) / 1000)) : 0;
+
+  function lockIn(task) {
+    const key = `${task.deliveryId}:${task.position}`;
+    const opt = picked[key];
+    if (opt === undefined || sent[key]) return;
+    setSent((s) => ({ ...s, [key]: true }));
+    socket.emit('puzzle_answer', { participantId, deliveryId: task.deliveryId, position: task.position, optionIndex: opt });
+    setTimeout(() => setSent((s) => { const n = { ...s }; delete n[key]; return n; }), 4000); // allow a retry if it never landed
   }
 
-  function submitPlacement(idx) {
-    const row = inputs[idx] || {};
-    if (!row.code || !row.slot) {
-      setErrors((e) => ({ ...e, active: 'Fill in both fields.' }));
-      setTimeout(() => setErrors((e) => ({ ...e, active: null })), 2500);
-      return;
-    }
-    socket.emit('jigsaw_place_piece', { teamNumber: team.number, code: row.code, slotNumber: row.slot, participantId });
+  function submitCode(e) {
+    e.preventDefault();
+    if (code.length !== 4) { setError('Codes are 4 digits, each 1, 2 or 3.'); return; }
+    socket.emit('puzzle_submit_code', { participantId, code });
   }
 
-  function submitRocket(slot) {
-    socket.emit('jigsaw_place_rocket', { teamNumber: team.number, slotNumber: slot, participantId });
+  function confirmExplain(d) {
+    const picks = explain[d.id] || [];
+    if (picks.filter(Boolean).length !== 4) return;
+    socket.emit('puzzle_confirm', { participantId, deliveryId: d.id, explained: picks });
   }
 
-  return (
-    <div className="lc-root">
-      <div className="lc-glow" />
-      <ConnectionPill />
-      <div className="lc-content" style={{ minHeight: '100dvh', padding: '28px 18px 48px', maxWidth: 480, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <img src="/logo.png" alt="" style={{ height: 32 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="lc-badge" style={{ background: `${team.colour}22`, color: team.colour, borderColor: `${team.colour}55` }}>
-              Team {team.number}
-            </span>
-            {isCaptain && <span className="lc-badge" style={{ background: 'rgba(232,185,35,.15)', color: 'var(--gold)', borderColor: 'rgba(232,185,35,.3)' }}>You're the captain</span>}
-          </div>
-        </div>
-
-        <h1 className="lc-h1" style={{ fontSize: 24, marginBottom: 16 }}>The Jigsaw</h1>
-
-        {hintBanner && (
-          <div className="lc-card lc-fadein" style={{ padding: '14px 18px', marginBottom: 16, border: `1px solid var(--gold)` }}>
-            <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{hintBanner}</span>
-          </div>
-        )}
-
-        {errors.active && (
-          <div className="lc-card lc-fadein" style={{ padding: '14px 18px', marginBottom: 16, border: '1px solid #a83232' }}>
-            <span style={{ color: '#ff9a9a' }}>{errors.active}</span>
-          </div>
-        )}
-
-        <div className="lc-tabs" style={{ marginBottom: 20 }}>
-          <button className={`lc-tab ${tab === 'board' ? 'active' : ''}`} onClick={() => setTab('board')}>Our board</button>
-          <button className={`lc-tab ${tab === 'holding' ? 'active' : ''}`} onClick={() => setTab('holding')}>We're holding</button>
-          <button className={`lc-tab ${tab === 'legend' ? 'active' : ''}`} onClick={() => setTab('legend')}>We know slots</button>
-          <button className={`lc-tab ${tab === 'team' ? 'active' : ''}`} onClick={() => setTab('team')}>My team</button>
-        </div>
-
-        {tab === 'board' && (
-          <div>
-            <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
-              {board.length > 0 && board.every((r) => r.isRocket)
-                ? "Your team owns two sections of the puzzle. Both are part of the rocket — you'll place them at the very end, in front of everyone. No codes to collect."
-                : isCaptain
-                  ? 'Your team owns two sections of the puzzle. Get the code and slot number for each from other teams to place them.'
-                  : `Your team owns two sections of the puzzle. ${captainName || 'Your team\'s captain'} handles entering the codes and slots — track them down if you find one.`}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {board.map((row, idx) => (
-                <div key={idx} className="lc-card" style={{ padding: 20 }}>
-                  <p className="lc-faint" style={{ marginTop: 0, marginBottom: 12, fontWeight: 700, color: 'var(--gold)', letterSpacing: '.02em' }}>
-                    Section {row.section}
-                  </p>
-                  {row.placed ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                        <PuzzleCrop slot={row.slot} size={72} rounded={12} style={{ border: '1px solid rgba(232,185,35,.35)' }} />
-                      </div>
-                      <p style={{ margin: 0, fontWeight: 600 }}>{row.isRocket ? 'Part of the rocket' : row.valueText}</p>
-                      <span className="lc-badge" style={{ marginTop: 10 }}>Slot {row.slot} · Placed</span>
-                    </div>
-                  ) : row.locked ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4, color: 'var(--ink-faint)' }}>
-                        <svg viewBox="0 0 24 24" width={32} height={32} fill="none" stroke="currentColor"
-                          strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="5" y="11" width="14" height="10" rx="2" />
-                          <path d="M8 11V7a4 4 0 018 0v4" />
-                        </svg>
-                      </div>
-                      <p className="lc-faint" style={{ marginBottom: 6 }}>This piece unlocks once the rest of the board is done.</p>
-                      <p className="lc-faint" style={{ marginTop: 0, color: 'var(--gold)', opacity: 0.75 }}>
-                        Meanwhile, other teams need what's on your other tabs.
-                      </p>
-                    </div>
-                  ) : row.isRocket ? (
-                    isCaptain ? (
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
-                          <RocketIcon part="body" size={40} />
-                        </div>
-                        <p className="lc-faint" style={{ marginBottom: 14 }}>This is your slot — no code needed. Place it when everyone's watching.</p>
-                        <button className="lc-btn lc-btn-gold" style={{ width: '100%' }} onClick={() => submitRocket(row.slot)}>
-                          Place slot {row.slot}
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10, color: 'var(--gold)' }}>
-                          <RocketIcon part="body" size={40} />
-                        </div>
-                        <p className="lc-faint">Unlocked and ready. {captainName || 'Your captain'} will place it live.</p>
-                      </div>
-                    )
-                  ) : isCaptain ? (
-                    <div>
-                      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                        <input className="lc-input" placeholder="Slot #" inputMode="numeric"
-                          value={inputs[idx]?.slot || ''} onChange={(e) => updateInput(idx, 'slot', e.target.value)} />
-                        <input className="lc-input" placeholder="Code" style={{ textTransform: 'uppercase' }}
-                          value={inputs[idx]?.code || ''} onChange={(e) => updateInput(idx, 'code', e.target.value)} />
-                      </div>
-                      <button className="lc-btn lc-btn-primary" style={{ width: '100%' }} onClick={() => submitPlacement(idx)}>Place piece</button>
-                    </div>
-                  ) : (
-                    <p className="lc-faint" style={{ textAlign: 'center' }}>
-                      Still waiting on a code and slot. {captainName || 'Your captain'} will enter them here once found.
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {tab === 'holding' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p className="lc-faint" style={{ marginTop: 0 }}>Read these codes to the owning team when they find you.</p>
-            {holding.length === 0 ? (
-              <div className="lc-card" style={{ padding: '16px 18px' }}>
-                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You don't have a code to share right now — a teammate might.</p>
-              </div>
-            ) : holding.map((h, i) => (
-              <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: h.placed ? 0.4 : 1 }}>
-                <span style={{ fontWeight: 600 }}>Section {h.section}</span>
-                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>{h.code}</span>
-                <span className="lc-faint" style={{ margin: 0 }}>Team {h.ownerTeamNumber}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === 'legend' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p className="lc-faint" style={{ marginTop: 0 }}>Read these slot numbers to the owning team when they find you.</p>
-            {legend.length === 0 ? (
-              <div className="lc-card" style={{ padding: '16px 18px' }}>
-                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>You don't have a slot to share right now — a teammate might.</p>
-              </div>
-            ) : legend.map((l, i) => (
-              <div key={i} className="lc-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: l.placed ? 0.4 : 1 }}>
-                <span style={{ fontWeight: 600 }}>Section {l.section}</span>
-                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 700 }}>Slot {l.slot}</span>
-                <span className="lc-faint" style={{ margin: 0 }}>Team {l.ownerTeamNumber}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === 'team' && (
-          <div className="lc-fadein" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p className="lc-faint" style={{ marginTop: 0 }}>
-              Your team for the rest of the session. Find these people if you get separated.
-            </p>
-            {teammates.length > 0 ? (
-              teammates.map((n, i) => (
-                <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 40}ms` }}>{n}</div>
-              ))
-            ) : (
-              <div className="lc-teammate" style={{ opacity: 0.6, fontStyle: 'italic' }}>No one else on your team yet</div>
-            )}
-          </div>
+  const colour = team.colour;
+  const header = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+      <img src="/logo.png" alt="" style={{ height: 32 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span className="lc-badge" style={{ background: `${colour}22`, color: colour, borderColor: `${colour}55` }}>Team {team.number}</span>
+        {me && me.isCaptain && (
+          <span className="lc-badge" style={{ background: 'rgba(232,185,35,.15)', color: 'var(--gold)', borderColor: 'rgba(232,185,35,.3)' }}>
+            <Icon name="captain" size={13} /> Captain
+          </span>
         )}
       </div>
     </div>
+  );
+
+  const shell = (children) => (
+    <div className="lc-root">
+      <div className="lc-glow" />
+      <ConnectionPill />
+      <div className="lc-content" style={{ minHeight: '100dvh', padding: '26px 16px 56px', maxWidth: 480, margin: '0 auto' }}>
+        {header}
+        {children}
+      </div>
+    </div>
+  );
+
+  if (!me) {
+    return shell(
+      <div style={{ textAlign: 'center', marginTop: 60 }}>
+        <div className="lc-pulse-dot" style={{ margin: '0 auto 20px' }} />
+        <p className="lc-sub">Loading your puzzle...</p>
+      </div>
+    );
+  }
+
+  if (!me.inPlay) {
+    return shell(
+      <div className="lc-card" style={{ padding: 22, textAlign: 'center' }}>
+        <p style={{ margin: 0 }}>You're not on a team in this round. Please find the facilitator.</p>
+      </div>
+    );
+  }
+
+  const complete = me.state === 'complete';
+  const openTasks = (me.tasks || []).filter((t) => t.answered === null);
+  const doneTasks = (me.tasks || []).filter((t) => t.answered !== null);
+  const out = me.outgoing;
+
+  return shell(
+    <>
+      <h1 className="lc-h1" style={{ fontSize: 24, marginBottom: 6 }}>Accountability Puzzle</h1>
+      <p className="lc-faint" style={{ marginTop: 0, marginBottom: 18 }}>
+        Answer for other teams, unlock your piece with their codes.
+      </p>
+
+      {error && (
+        <div className="lc-card lc-fadein" style={{ padding: '13px 16px', marginBottom: 14, border: '1px solid #a83232', display: 'flex', gap: 10, alignItems: 'center', color: '#ff9a9a' }}>
+          <Icon name="alert" size={18} /><span>{error}</span>
+        </div>
+      )}
+
+      {/* Our piece */}
+      <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <PieceView slot={me.piece.slot} quarters={me.piece.quarters} width={132} colour={colour} />
+          <div style={{ flex: 1 }}>
+            <div className="lc-stat-label">Our piece</div>
+            <div className="lc-stat-value" style={{ fontSize: 26 }}>{me.received}<span style={{ color: 'var(--ink-faint)', fontSize: 17 }}>/{me.rounds} unlocked</span></div>
+            <div className="lc-stat-label" style={{ marginTop: 10 }}>Codes we delivered</div>
+            <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 18 }}>{me.sent}<span style={{ color: 'var(--ink-faint)', fontSize: 14 }}>/{me.rounds}</span></div>
+          </div>
+        </div>
+      </div>
+
+      {complete && (
+        <div className="lc-card lc-pop" style={{ padding: 22, marginBottom: 14, textAlign: 'center', border: '1px solid rgba(232,185,35,.4)' }}>
+          <div style={{ color: 'var(--gold)', display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Icon name="flag" size={28} /></div>
+          <h2 className="lc-h2" style={{ margin: '0 0 6px' }}>The picture is complete</h2>
+          <p className="lc-sub">Look up at the screen.</p>
+        </div>
+      )}
+
+      {/* My scenario(s) */}
+      {!complete && openTasks.map((t) => {
+        const key = `${t.deliveryId}:${t.position}`;
+        const choice = picked[key];
+        return (
+          <div key={key} className="lc-card lc-fadein" style={{ padding: 18, marginBottom: 14, border: '1px solid rgba(232,87,26,.45)' }}>
+            <SectionTitle icon="key" colour="var(--carnelian-bright)">Your turn: digit {t.position} of 4</SectionTitle>
+            <p className="lc-faint" style={{ marginTop: 0, marginBottom: 8 }}>For <TeamTag number={t.toTeam} colour={(me.outgoing && me.outgoing.toColour) || undefined} /> &middot; {t.scenario.category}</p>
+            <p style={{ fontSize: 16.5, lineHeight: 1.5, margin: '0 0 16px', fontWeight: 500 }}>{t.scenario.text}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {t.scenario.options.map((o, i) => (
+                <button key={i} onClick={() => setPicked((p) => ({ ...p, [key]: i }))}
+                  className={`lc-option ${choice === i ? 'lc-selected' : ''}`} style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{
+                    width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 15,
+                    background: choice === i ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.07)',
+                  }}>{i + 1}</span>
+                  <span>
+                    <span style={{ display: 'block', fontWeight: 700, fontSize: 15.5 }}>{o.title}</span>
+                    <span style={{ display: 'block', fontSize: 13.5, opacity: 0.8, marginTop: 4, lineHeight: 1.45 }}>{o.detail}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button className="lc-btn lc-btn-primary" style={{ width: '100%', marginTop: 14 }} disabled={choice === undefined || !!sent[key]} onClick={() => lockIn(t)}>
+              {sent[key] ? 'Locking in...' : 'Lock in my answer'}
+            </button>
+            <p className="lc-faint" style={{ marginBottom: 0 }}>No wrong answers. Pick what you would really do, and be ready to say which behaviour it shows.</p>
+          </div>
+        );
+      })}
+
+      {!complete && doneTasks.map((t) => {
+        const o = t.scenario.options[t.answered];
+        return (
+          <div key={`${t.deliveryId}:${t.position}`} className="lc-card" style={{ padding: 16, marginBottom: 14, display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div style={{
+              width: 46, height: 54, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 28, color: '#1a1410', background: 'linear-gradient(160deg,#f6d77a,var(--gold))',
+            }}>{t.digit}</div>
+            <div>
+              <div className="lc-stat-label">Your digit {t.position} of 4</div>
+              <div style={{ fontWeight: 600, marginTop: 3 }}>{o ? o.title : ''}</div>
+              <div className="lc-faint" style={{ marginTop: 4 }}>Think about which behaviour this shows. You'll explain it to Team {t.toTeam}.</div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Our delivery */}
+      {!complete && (
+        <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
+          <SectionTitle icon="send">Our delivery</SectionTitle>
+          {!out ? (
+            <p style={{ margin: 0, color: 'var(--ink-dim)' }}>
+              {me.sent >= me.rounds ? 'All 4 codes delivered. Help your captain unlock your piece.' : 'Waiting for the next round...'}
+            </p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                <span className="lc-faint" style={{ margin: 0 }}>Round {out.round} of {me.rounds}</span>
+                <Icon name="arrow" size={14} style={{ opacity: 0.5 }} />
+                <TeamTag number={out.toTeam} colour={out.toColour} />
+                {out.toCaptainName && <span className="lc-faint" style={{ margin: 0 }}>captain {out.toCaptainName}</span>}
+              </div>
+              {out.status === 'answering' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {out.answerers.map((a) => (
+                      <div key={a.position} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,.035)' }}>
+                        <span style={{ width: 22, fontWeight: 700, opacity: 0.55 }}>{a.position}</span>
+                        <span style={{ flex: 1, fontWeight: a.isMe ? 700 : 500 }}>{a.name || 'Waiting for someone'}{a.isMe ? ' (you)' : ''}</span>
+                        {a.done
+                          ? <span style={{ color: '#3ddc84' }}><Icon name="check" size={18} stroke={2.4} /></span>
+                          : <span style={{ color: 'var(--ink-faint)' }}><Icon name="clock" size={16} /></span>}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="lc-faint" style={{ marginBottom: 0 }}>{out.answeredCount}/4 answered. The code appears here once all 4 are in.</p>
+                </>
+              )}
+              {out.status === 'ready' && (
+                <div className="lc-pop" style={{ textAlign: 'center' }}>
+                  <CodeDigits code={out.code} />
+                  <p style={{ margin: '16px 0 6px', fontWeight: 600 }}>Walk this code to Team {out.toTeam}{out.toCaptainName ? ` and find ${out.toCaptainName}` : ''}.</p>
+                  <p className="lc-faint" style={{ marginTop: 0, marginBottom: 0 }}>Explain which behaviour each digit shows. Their captain will ask.</p>
+                </div>
+              )}
+              {out.status === 'verified' && (
+                <p style={{ margin: 0, color: 'var(--ink-dim)' }}>Code accepted. Team {out.toTeam} is matching the behaviours you explained.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Receiving: captain enters codes */}
+      {!complete && (
+        <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
+          <SectionTitle icon="key">Codes coming to us</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            {me.incoming.map((d) => (
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,.035)', opacity: d.status === 'unlocked' ? 0.55 : 1 }}>
+                <TeamTag number={d.fromTeam} colour={d.fromColour} />
+                <span style={{ marginLeft: 'auto', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: d.status === 'unlocked' ? '#3ddc84' : d.status === 'ready' ? 'var(--gold)' : 'var(--ink-faint)' }}>
+                  {d.status === 'unlocked' && <><Icon name="check" size={15} stroke={2.4} /> Unlocked</>}
+                  {d.status === 'ready' && <><Icon name="send" size={14} /> On the way</>}
+                  {d.status === 'verified' && <><Icon name="key" size={14} /> Matching</>}
+                  {d.status === 'waiting' && <><Icon name="clock" size={14} /> Answering</>}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {!me.isCaptain && (
+            <p style={{ margin: 0, color: 'var(--ink-dim)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <Icon name="captain" size={16} style={{ marginTop: 2, color: 'var(--gold)' }} />
+              <span>{me.captainName || 'Your captain'} enters codes for your team.{me.captainOnline ? '' : ' If they stay offline, the role moves to someone else automatically.'} When a team arrives with a code, bring them to {me.captainName || 'your captain'}.</span>
+            </p>
+          )}
+
+          {me.isCaptain && !verified && (
+            lockLeft > 0 ? (
+              <div style={{ textAlign: 'center', padding: '10px 0', color: '#ff9a9a' }}>
+                <Icon name="lock" size={22} />
+                <p style={{ margin: '8px 0 0' }}>Too many wrong codes. Try again in {lockLeft}s.</p>
+              </div>
+            ) : (
+              <form onSubmit={submitCode}>
+                <input className="lc-input" value={code} inputMode="numeric" placeholder="4 digit code"
+                  onChange={(e) => setCode(e.target.value.replace(/[^1-3]/g, '').slice(0, 4))}
+                  style={{ fontSize: 28, letterSpacing: 14, fontFamily: "'Poppins',sans-serif", fontWeight: 700 }} />
+                <button className="lc-btn lc-btn-primary" type="submit" style={{ width: '100%', marginTop: 10 }} disabled={code.length !== 4}>Unlock</button>
+                <p className="lc-faint" style={{ marginBottom: 0 }}>Each digit is 1, 2 or 3. Ask the team to explain each answer as they give it.</p>
+              </form>
+            )
+          )}
+
+          {me.isCaptain && verified && (
+            <div className="lc-fadein">
+              <p style={{ margin: '0 0 4px', fontWeight: 700 }}>Code accepted from Team {verified.fromTeam}</p>
+              <p className="lc-faint" style={{ marginTop: 0, marginBottom: 14 }}>For each digit, tap the behaviour they explained. This unlocks the piece.</p>
+              {[0, 1, 2, 3].map((j) => {
+                const picks = explain[verified.id] || [];
+                return (
+                  <div key={j} style={{ marginBottom: 12 }}>
+                    <div className="lc-stat-label" style={{ marginBottom: 6 }}>Answer {j + 1}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {[...BEHAVIOR_LIST, 'none'].map((b) => {
+                        const on = picks[j] === b;
+                        const meta = BEHAVIOR_META[b];
+                        return (
+                          <button key={b} type="button"
+                            onClick={() => setExplain((x) => { const arr = (x[verified.id] || [null, null, null, null]).slice(); arr[j] = b; return { ...x, [verified.id]: arr }; })}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 11px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                              border: `1.5px solid ${on ? (meta ? meta.colour : '#888') : 'rgba(255,255,255,.12)'}`,
+                              background: on ? `${meta ? meta.colour : '#888888'}33` : 'rgba(255,255,255,.03)', color: 'var(--ink)',
+                            }}>
+                            {meta ? <BehaviorIcon behavior={b} size={14} /> : null}
+                            {meta ? b : 'Not explained'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              <button className="lc-btn lc-btn-gold" style={{ width: '100%', marginTop: 6 }}
+                disabled={(explain[verified.id] || []).filter(Boolean).length !== 4}
+                onClick={() => confirmExplain(verified)}>
+                Unlock our piece
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Behaviour key */}
+      <div className="lc-card" style={{ padding: '14px 18px', marginBottom: 14 }}>
+        <button onClick={() => setShowKey((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 600 }}>
+          <Icon name="puzzle" size={16} style={{ color: 'var(--gold)' }} /> The 5 behaviours
+          <Icon name="chevron" size={16} style={{ marginLeft: 'auto', transform: showKey ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+        </button>
+        {showKey && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+            {BEHAVIOR_LIST.map((b) => (
+              <div key={b} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <BehaviorIcon behavior={b} size={18} />
+                <div>
+                  <div style={{ fontWeight: 700, color: BEHAVIOR_META[b].colour }}>{b}</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--ink-dim)', lineHeight: 1.45 }}>{(me.definitions || {})[b]}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Team */}
+      <div className="lc-card" style={{ padding: '14px 18px' }}>
+        <button onClick={() => setShowTeam((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 600 }}>
+          <Icon name="users" size={16} style={{ color: 'var(--gold)' }} /> My team
+          <Icon name="chevron" size={16} style={{ marginLeft: 'auto', transform: showTeam ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
+        </button>
+        {showTeam && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+            {teammates.length > 0
+              ? teammates.map((n, i) => <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 40}ms` }}>{n}{n === me.captainName ? '  (captain)' : ''}</div>)
+              : <div className="lc-teammate" style={{ opacity: 0.6, fontStyle: 'italic' }}>No one else on your team</div>}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
+   ACCOUNTABILITY PUZZLE: PROJECTOR
+   ============================================================ */
+function BehaviorBars({ stats, large }) {
+  if (!stats) return null;
+  const total = stats.answersGiven || 0;
+  const max = Math.max(1, ...BEHAVIOR_LIST.map((b) => stats.chosen[b] || 0));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: large ? 18 : 10 }}>
+      {BEHAVIOR_LIST.map((b) => {
+        const n = stats.chosen[b] || 0;
+        const pct = total ? Math.round((n / total) * 100) : 0;
+        const meta = BEHAVIOR_META[b];
+        const match = stats.matched ? stats.matched[b] || 0 : 0;
+        return (
+          <div key={b} style={{ display: 'flex', alignItems: 'center', gap: large ? 18 : 10 }}>
+            <BehaviorIcon behavior={b} size={large ? 30 : 18} />
+            <div style={{ width: large ? 210 : 120, fontWeight: 700, fontSize: large ? 22 : 13, color: meta.colour }}>{b}</div>
+            <div style={{ flex: 1, height: large ? 22 : 9, borderRadius: 999, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
+              <div style={{ width: `${(n / max) * 100}%`, height: '100%', borderRadius: 999, background: meta.colour, transition: 'width .8s cubic-bezier(.2,.8,.3,1)' }} />
+            </div>
+            <div style={{ width: large ? 90 : 46, textAlign: 'right', fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: large ? 28 : 13 }}>{pct}%</div>
+            {large && (
+              <div style={{ width: 230, textAlign: 'right', fontSize: 15, color: 'rgba(245,240,232,.55)', whiteSpace: 'nowrap' }}>
+                {n} chosen &middot; {match} heard back
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PuzzleBoard({ board, maxW, maxH }) {
+  const ratio = usePuzzleImageRatio();
+  const width = Math.max(200, Math.min(maxW, maxH * ratio));
+  const height = width / ratio;
+  const gap = 2;
+  const qCols = BOARD_COLS * 2, qRows = BOARD_ROWS * 2;
+  const cw = width / qCols, ch = height / qRows;
+  const pieces = board ? board.pieces : [];
+  return (
+    <div style={{ position: 'relative', width, height }}>
+      {pieces.map((p) => [0, 1, 2, 3].map((q) => {
+        const { c, r } = quarterCell(p.slot, q);
+        const open = !!p.quarters[q];
+        return (
+          <div key={`${p.slot}-${q}`} className={open ? 'lc-quarter-open' : ''} style={{
+            position: 'absolute', left: c * cw + gap / 2, top: r * ch + gap / 2, width: cw - gap, height: ch - gap,
+            borderRadius: 3,
+            ...(open ? cropStyle(c, r) : { background: 'rgba(255,255,255,.035)' }),
+          }} />
+        );
+      }))}
+      {/* piece outlines and team numbers on pieces still locked */}
+      {pieces.map((p) => {
+        const idx = p.slot - 1;
+        const col = idx % BOARD_COLS, row = Math.floor(idx / BOARD_COLS);
+        const done = p.quarters.every(Boolean);
+        const count = p.quarters.filter(Boolean).length;
+        return (
+          <div key={`o${p.slot}`} style={{
+            position: 'absolute', left: col * cw * 2, top: row * ch * 2, width: cw * 2, height: ch * 2,
+            border: `1.5px solid ${done ? 'transparent' : (p.colour || 'rgba(255,255,255,.2)') + '88'}`, borderRadius: 6,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', transition: 'border-color .8s',
+          }}>
+            {!done && p.teamNumber && (
+              <span style={{
+                padding: '4px 10px', borderRadius: 999, background: 'rgba(7,8,11,.78)', border: `1px solid ${p.colour}66`,
+                color: p.colour, fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: Math.max(11, Math.min(17, cw / 5.5)),
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+                Team {p.teamNumber}<span style={{ color: 'rgba(245,240,232,.5)', fontWeight: 600 }}>{count}/4</span>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PuzzleProjector({ board }) {
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const sideW = Math.min(330, Math.max(250, size.w * 0.21));
+  const pad = 26;
+  const complete = board && board.state === 'complete';
+  const showResults = board && board.showResults && board.stats;
+
+  return (
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: 'radial-gradient(ellipse at top, #1a1410 0%, #07080b 60%)', color: '#f5f0e8', fontFamily: "'Inter',sans-serif" }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px',
+        background: '#0d0e12', borderBottom: '2px solid #e8571a',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+          <img src="/logo.png" alt="Carnelian" style={{ height: 38 }} />
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16 }}>Accountability Puzzle</span>
+        </div>
+        <div style={{ flex: 1, textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15 }}>
+          {complete ? (
+            <span style={{ color: '#e8b923' }}>Complete</span>
+          ) : (
+            <>
+              <span style={{ color: '#e8571a' }}>{board ? board.unlocked : 0}</span>
+              <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 80} pieces unlocked</span>
+            </>
+          )}
+        </div>
+        <div style={{ flex: 1, textAlign: 'right', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>
+          Convey Meaning. Create Significance.
+        </div>
+      </div>
+
+      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: sideW + pad * 2, bottom: pad, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <PuzzleBoard board={board} maxW={size.w - sideW - pad * 3} maxH={size.h - TOP_BAR_HEIGHT - pad * 2} />
+      </div>
+
+      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, right: pad, bottom: pad, width: sideW, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
+          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>How it works</div>
+          {[
+            ['key', '4 of you answer a scenario. Your choices make a 4 digit code.'],
+            ['send', 'Walk the code to your partner team and explain each behaviour.'],
+            ['puzzle', 'Their captain enters it and a piece of their picture unlocks.'],
+          ].map(([ic, t]) => (
+            <div key={ic} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10, fontSize: 13.5, lineHeight: 1.45, color: 'rgba(245,240,232,.78)' }}>
+              <span style={{ color: '#e8571a', marginTop: 1 }}><Icon name={ic} size={16} /></span>{t}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>Latest</div>
+          {(!board || board.feed.length === 0) && <div style={{ fontSize: 13.5, color: 'rgba(245,240,232,.45)' }}>Waiting for the first code...</div>}
+          {board && board.feed.map((f, i) => (
+            <div key={f.at + '-' + i} className="lc-rise" style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,.05)', fontSize: 13.5, opacity: 1 - i * 0.09 }}>
+              <span style={{ color: '#3ddc84' }}><Icon name="check" size={15} stroke={2.4} /></span>
+              <span>{f.text}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
+          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>The 5 behaviours</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {BEHAVIOR_LIST.map((b) => (
+              <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
+                <BehaviorIcon behavior={b} size={17} /><span>{b}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {showResults && (
+        <div className="lc-fadein" style={{
+          position: 'absolute', inset: 0, top: TOP_BAR_HEIGHT, zIndex: 20, background: 'rgba(7,8,11,.94)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 6vw',
+        }}>
+          <div style={{ fontSize: 13, letterSpacing: '.3em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 600, marginBottom: 10 }}>How the room chose</div>
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(30px,4vw,54px)', marginBottom: 34, textAlign: 'center' }}>
+            {board.stats.answersGiven} decisions across the room
+          </div>
+          <div style={{ width: 'min(1100px, 100%)' }}>
+            <BehaviorBars stats={board.stats} large />
+          </div>
+          <div style={{ marginTop: 34, display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center', fontSize: 15, color: 'rgba(245,240,232,.6)' }}>
+            <span><b style={{ color: '#f5f0e8' }}>%</b> share of all answers that showed this behaviour</span>
+            <span><b style={{ color: '#f5f0e8' }}>heard back</b> times the receiving team understood the same behaviour from the explanation</span>
+          </div>
+          {board.stats.explainedTotal > 0 && (
+            <div style={{ marginTop: 18, fontSize: 18, color: '#f5f0e8' }}>
+              Explained and understood: <b style={{ color: '#e8b923' }}>{Math.round((board.stats.matchTotal / board.stats.explainedTotal) * 100)}%</b>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   ACCOUNTABILITY PUZZLE: FACILITATOR
+   ============================================================ */
+const DELIVERY_STATUS_LABEL = { answering: 'Answering', ready: 'Code on the way', verified: 'Matching behaviours' };
+
+function minutesSince(ts, now) {
+  if (!ts) return '';
+  const s = Math.max(0, Math.floor((now - ts) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+function PuzzleFacilitatorPanel({ pz, board, onConfirm }) {
+  const now = useNow(true, 1000);
+  if (!pz) return <div className="lc-card" style={{ padding: 24 }}><p className="lc-faint" style={{ margin: 0 }}>Loading puzzle...</p></div>;
+  const stats = pz.stats;
+  const inFlight = pz.teams.filter((t) => t.outgoing).length;
+  const matchPct = stats.explainedTotal ? Math.round((stats.matchTotal / stats.explainedTotal) * 100) : null;
+  const complete = pz.state === 'complete';
+
+  function unlock(deliveryId, from, to) {
+    onConfirm({
+      title: `Unlock for Team ${to}?`,
+      message: `This opens the piece Team ${from} is bringing to Team ${to} without a code. Use it only when a pair is genuinely stuck.`,
+      confirmLabel: 'Unlock piece',
+      onConfirm: () => socket.emit('facilitator_puzzle_unlock', { deliveryId }),
+    });
+  }
+
+  return (
+    <>
+      <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
+        <div className="lc-stat-card"><div className="lc-stat-label">Unlocked</div><div className="lc-stat-value">{board ? board.unlocked : 0}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{board ? board.total : 80}</span></div>
+          <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${board ? (board.unlocked / board.total) * 100 : 0}%` }} /></div></div>
+        <div className="lc-stat-card"><div className="lc-stat-label">Deliveries in progress</div><div className="lc-stat-value">{complete ? 0 : inFlight}</div></div>
+        <div className="lc-stat-card"><div className="lc-stat-label">Answers given</div><div className="lc-stat-value">{stats.answersGiven}</div></div>
+        <div className="lc-stat-card"><div className="lc-stat-label">Explained and understood</div><div className="lc-stat-value">{matchPct === null ? '-' : `${matchPct}%`}</div></div>
+      </div>
+
+      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
+        <div className="lc-btn-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className={`lc-btn ${pz.showResults ? 'lc-btn-outline' : 'lc-btn-gold'}`} style={{ flex: '1 1 200px' }}
+            onClick={() => socket.emit('facilitator_puzzle_results', { show: !pz.showResults })}>
+            {pz.showResults ? 'Hide results on projector' : 'Show results on projector'}
+          </button>
+          {!complete && (
+            <button className="lc-btn lc-btn-primary" style={{ flex: '1 1 200px' }} onClick={() => onConfirm({
+              title: 'End and reveal the picture?',
+              message: 'Every locked piece opens on the projector right away and phones show the game as complete.',
+              confirmLabel: 'End and reveal',
+              onConfirm: () => socket.emit('facilitator_puzzle_reveal'),
+            })}>End and reveal picture</button>
+          )}
+          <button className="lc-btn lc-btn-outline" style={{ flex: '1 1 160px' }} onClick={() => onConfirm({
+            title: 'Restart the puzzle?',
+            message: 'New pairings, new scenarios and new captains. The board goes back to fully locked. Teams stay as they are.',
+            confirmLabel: 'Restart puzzle', danger: true,
+            onConfirm: () => socket.emit('facilitator_restart_puzzle'),
+          })}>Restart puzzle</button>
+        </div>
+      </div>
+
+      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
+        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 6px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Behaviour stats (whole room)</h3>
+        <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
+          Key: <b>%</b> share of all answers showing that behaviour. <b>Chosen</b> answers that showed it. <b>Heard back</b> of those, how many the receiving captain tapped as the same behaviour. <b>Not explained</b> digits the captain marked as not explained.
+        </p>
+        <BehaviorBars stats={stats} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8, marginTop: 16 }}>
+          {BEHAVIOR_LIST.map((b) => (
+            <div key={b} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.03)', fontSize: 13 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: BEHAVIOR_META[b].colour, marginBottom: 4 }}><BehaviorIcon behavior={b} size={14} />{b}</div>
+              <div style={{ color: 'var(--ink-dim)' }}>Chosen {stats.chosen[b]} &middot; Heard back {stats.matched[b]}</div>
+            </div>
+          ))}
+          <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.03)', fontSize: 13 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Not explained</div>
+            <div style={{ color: 'var(--ink-dim)' }}>{stats.notExplained} digits</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
+        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 6px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Teams</h3>
+        <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
+          Key: <b>Sent</b> codes this team delivered. <b>Got</b> quarters of their own piece unlocked. <b>Leans</b> the behaviour this team chose most. <b>Heard</b> digits the receiving captain matched to the same behaviour, out of those explained. Green dot online, grey offline. Codes are shown here so you can help a stuck pair. Offline captains and answerers are replaced automatically after 20 to 30 seconds.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
+          {pz.teams.map((t) => {
+            const o = t.outgoing;
+            const slow = o && o.since && now - o.since > 4 * 60 * 1000;
+            const top = BEHAVIOR_LIST.slice().sort((a, b) => (t.stats.chosen[b] || 0) - (t.stats.chosen[a] || 0))[0];
+            return (
+              <div key={t.number} style={{ padding: 14, borderRadius: 14, background: 'rgba(255,255,255,.03)', border: `1px solid ${slow ? 'rgba(255,107,107,.55)' : t.colour + '33'}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <TeamTag number={t.number} colour={t.colour} />
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-dim)' }}>Sent {t.sent}/4 &middot; Got {t.received}/4</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 13 }}>
+                  <Icon name="captain" size={14} style={{ color: 'var(--gold)' }} />
+                  <select className="lc-select" value={t.captainId || ''} style={{ padding: '7px 10px', fontSize: 13, flex: 1 }}
+                    onChange={(e) => socket.emit('facilitator_puzzle_set_captain', { teamNumber: t.number, participantId: e.target.value })}>
+                    {t.members.map((m) => <option key={m.id} value={m.id}>{m.name}{m.online ? '' : ' (offline)'}</option>)}
+                  </select>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.captainOnline ? '#3ddc84' : '#666' }} />
+                </div>
+
+                {t.lockedUntil > now && <div style={{ fontSize: 12.5, color: '#ff9a9a', marginBottom: 8 }}>Code entry paused for {Math.ceil((t.lockedUntil - now) / 1000)}s (wrong codes)</div>}
+
+                {o ? (
+                  <div style={{ padding: 10, borderRadius: 10, background: 'rgba(255,255,255,.03)', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 6 }}>
+                      <span style={{ opacity: .6 }}>R{o.round}</span>
+                      <Icon name="arrow" size={13} style={{ opacity: .5 }} />
+                      <b>Team {o.toTeam}</b>
+                      <span style={{ marginLeft: 'auto', color: slow ? '#ff9a9a' : 'var(--ink-dim)', fontSize: 12 }}>{DELIVERY_STATUS_LABEL[o.status]} &middot; {minutesSince(o.since, now)}</span>
+                    </div>
+                    {o.status === 'answering' && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {o.answerers.map((a, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 999, fontSize: 12, background: a.done ? 'rgba(61,220,132,.12)' : 'rgba(255,255,255,.05)', color: a.done ? '#3ddc84' : 'var(--ink-dim)' }}>
+                            {a.done ? <Icon name="check" size={11} stroke={2.6} /> : <span style={{ width: 6, height: 6, borderRadius: '50%', background: a.online ? '#3ddc84' : '#666' }} />}
+                            {a.name || '-'}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {o.code && <div style={{ fontSize: 13, marginTop: 4 }}>Code <b style={{ letterSpacing: 3, color: 'var(--gold)' }}>{o.code}</b></div>}
+                    <button className="lc-btn lc-btn-outline" style={{ width: '100%', padding: '7px', fontSize: 12.5, marginTop: 8 }} onClick={() => unlock(o.id, t.number, o.toTeam)}>
+                      Unlock for Team {o.toTeam}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 8 }}>{t.sent >= 4 ? 'All codes delivered' : 'Waiting'}</div>
+                )}
+
+                {t.stats.answersGiven > 0 && (
+                  <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Leans <BehaviorIcon behavior={top} size={13} /><b style={{ color: BEHAVIOR_META[top].colour }}>{top}</b>
+                    <span style={{ marginLeft: 'auto' }}>Heard {t.stats.matchTotal}/{t.stats.explainedTotal}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
 /* ============================================================
    PROJECTOR VIEW
    ============================================================ */
-function QrToggle({ joinUrl }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button onClick={() => setOpen(true)} style={{
-        position: 'absolute', bottom: 20, right: 24, zIndex: 20,
-        padding: '9px 16px', borderRadius: 999, border: '1px solid rgba(255,255,255,.2)',
-        background: 'rgba(0,0,0,.4)', color: '#f5f0e8', fontSize: 13, fontWeight: 600,
-        backdropFilter: 'blur(8px)', cursor: 'pointer', display: open ? 'none' : 'block',
-      }}>
-        ⌗ QR code
-      </button>
-      {open && (
-        <div className="lc-fadein" style={{
-          position: 'absolute', inset: 0, zIndex: 30, background: 'rgba(7,8,11,.88)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
-        }}>
-          <button onClick={() => setOpen(false)} style={{
-            position: 'absolute', top: 24, right: 28, width: 42, height: 42, borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,.25)', background: 'rgba(255,255,255,.06)', color: '#fff',
-            fontSize: 20, cursor: 'pointer',
-          }}>✕</button>
-          <div style={{ padding: 22, borderRadius: 26, background: '#fdfaf5', boxShadow: '0 0 70px rgba(232,185,35,.22)' }}>
-            <QRCodeSVG value={joinUrl} size={320} bgColor="#fdfaf5" fgColor="#14100c" level="M" />
-          </div>
-          <p style={{ fontSize: 18, color: 'rgba(245,240,232,.6)' }}>{joinUrl.replace(/^https?:\/\//, '')}</p>
-        </div>
-      )}
-    </>
-  );
-}
+const QR_PANEL_WIDTH = 300;
 
-// Rocket spine segments (slots 3, 8, 13) — wordless by design, per the brief.
-// Used only as a pre-placement placeholder before the real artwork reveals.
-const ROCKET_PARTS = {
-  nose: 'M12 2c2.5 3 4 6 4 9H8c0-3 1.5-6 4-9zm0 5.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z',
-  body: 'M8 2h8v16H8V2zm0 5L4 11v6l4-3m8-8l4 4v6l-4-3m-6 5h4',
-  flame: 'M8 2h8v6H8V2zm4 6c2 3 3.5 5 3.5 7.5a3.5 3.5 0 01-7 0C8.5 13 10 11 12 8zm-4 2l-2 4m10-4l2 4',
-};
-
-function RocketIcon({ part, size = 28, strokeWidth = 1.7, style }) {
-  const d = ROCKET_PARTS[part] || ROCKET_PARTS.body;
+function QrIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={style}>
-      <path d={d} />
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4v-3" />
     </svg>
   );
 }
 
-// Crops one tile out of /public/Puzzle.png for a given board slot.
-// The image is a fixed 5-across x 4-down grid — this only shows correctly
-// once a piece is actually placed, since slot position is public at that
-// point but not before (matches "no preview of the finished artwork").
-function PuzzleCrop({ slot, size, fill, rounded = 10, style }) {
-  const idx = slot - 1;
-  const col = idx % 5, row = Math.floor(idx / 5);
-  const bgPosX = (col / 4) * 100;
-  const bgPosY = (row / 3) * 100;
-  const dims = fill ? { width: '100%', height: '100%' } : { width: size, height: size };
+// Docked to the right edge under the top bar, not centred, so the room can
+// still watch the nodes arrive while late joiners scan.
+function QrPanel({ open, onClose, joinUrl }) {
+  if (!open) return null;
   return (
-    <div style={{
-      ...dims,
-      borderRadius: rounded,
-      overflow: 'hidden',
-      backgroundImage: "url('/Puzzle.png')",
-      backgroundSize: '500% 400%',
-      backgroundPosition: `${bgPosX}% ${bgPosY}%`,
-      backgroundRepeat: 'no-repeat',
-      flexShrink: 0,
-      ...style,
-    }} />
+    <div className="lc-fadein" style={{
+      position: 'absolute', top: TOP_BAR_HEIGHT + 2, right: 0, width: QR_PANEL_WIDTH, zIndex: 20,
+      padding: '22px 22px 20px', background: 'rgba(13,14,18,.94)', borderLeft: '1px solid rgba(232,87,26,.4)',
+      borderBottom: '1px solid rgba(232,87,26,.4)', borderBottomLeftRadius: 18,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+      fontFamily: "'Inter',sans-serif", backdropFilter: 'blur(10px)',
+    }}>
+      <button onClick={onClose} aria-label="Close QR code" style={{
+        position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: '50%',
+        border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.05)', color: '#f5f0e8',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+      <div style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 600 }}>Scan to join</div>
+      <div style={{ padding: 14, borderRadius: 16, background: '#fdfaf5', boxShadow: '0 0 40px rgba(232,185,35,.2)' }}>
+        <QRCodeSVG value={joinUrl} size={QR_PANEL_WIDTH - 72} bgColor="#fdfaf5" fgColor="#14100c" level="M" />
+      </div>
+      <p style={{ margin: 0, fontSize: 13, color: 'rgba(245,240,232,.6)', textAlign: 'center', wordBreak: 'break-all' }}>
+        {joinUrl.replace(/^https?:\/\//, '')}
+      </p>
+    </div>
   );
 }
 
@@ -795,7 +1445,7 @@ function pathRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Shrinks text with an ellipsis until it fits maxWidth — protects the block
+// Shrinks text with an ellipsis until it fits maxWidth, protects the block
 // layout from full names (first + middle + last) overflowing the card.
 function truncateToWidth(ctx, text, maxWidth) {
   if (!text) return '';
@@ -805,14 +1455,17 @@ function truncateToWidth(ctx, text, maxWidth) {
   return t + '…';
 }
 
-// Grid cell for team block i (0-9), 5 columns x 2 rows, offset below the top bar.
-function teamBlockRect(i, w, h) {
-  const topOffset = TOP_BAR_HEIGHT + 16;
-  const margin = Math.max(20, w * 0.015);
-  const gutter = 14;
-  const cellW = (w - margin * 2 - gutter * 4) / 5;
-  const cellH = (h - topOffset - margin - gutter) / 2;
-  const col = i % 5, row = Math.floor(i / 5);
+// Grid cell for team block i: 5 columns, as many rows as the team count
+// needs (10 teams = 2 rows, 20 teams = 4 rows), offset below the top bar.
+function teamBlockRect(i, w, h, count = 10) {
+  const cols = 5;
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const topOffset = TOP_BAR_HEIGHT + 14;
+  const margin = Math.max(16, w * 0.012);
+  const gutter = rows > 2 ? 10 : 14;
+  const cellW = (w - margin * 2 - gutter * (cols - 1)) / cols;
+  const cellH = (h - topOffset - margin - gutter * (rows - 1)) / rows;
+  const col = i % cols, row = Math.floor(i / cols);
   return { x: margin + col * (cellW + gutter), y: topOffset + row * (cellH + gutter), w: cellW, h: cellH };
 }
 
@@ -836,16 +1489,13 @@ function ProjectorView() {
   const [submittedCount, setSubmittedCount] = useState(0);
   const [teams, setTeams] = useState([]);
   const [showFormingBanner, setShowFormingBanner] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrOpenRef = useRef(false);
+  useEffect(() => { qrOpenRef.current = qrOpen; }, [qrOpen]);
 
-  const [jigsawPieces, setJigsawPieces] = useState([]);
-  const [jigsawTeams, setJigsawTeams] = useState([]);
-  const [zoomPiece, setZoomPiece] = useState(null);
-  const zoomTokenRef = useRef(0);
-  const [jigsawStartedAt, setJigsawStartedAt] = useState(null);
-  const [jigsawClockRunning, setJigsawClockRunning] = useState(false);
+  const [board, setBoard] = useState(null);
 
   const joinUrl = `${window.location.origin}/`;
-  const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
@@ -905,7 +1555,7 @@ function ProjectorView() {
     });
   }
 
-  // Global repulsion is tuned for nodes roaming the full screen — once
+  // Global repulsion is tuned for nodes roaming the full screen, once
   // teams are packed into small boxes it overpowers the pull to center
   // and shoves nodes toward the block edges. Weaken it for that phase.
   function updatePhysicsForPhase() {
@@ -949,17 +1599,19 @@ function ProjectorView() {
     simRef.current = sim;
     // Node positions are driven directly in the draw loop below (wander during
     // the gathering phase, eased pull to team targets after formation). The d3
-    // simulation is kept only so existing references stay valid — running it
+    // simulation is kept only so existing references stay valid, running it
     // would fight both: its charge force pushes nodes to the screen edges, and
     // its decaying alpha freezes clusters mid-flight before they reach a box.
     sim.stop();
 
     function drawTeamBlocks(w, h, now) {
+      const teamCount = teamsRef.current.length;
+      const compact = teamCount > 10;
       teamsRef.current.forEach((t, i) => {
-        const rect = teamBlockRect(i, w, h);
+        const rect = teamBlockRect(i, w, h, teamCount);
 
         ctx.save();
-        pathRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, 16);
+        pathRoundRect(ctx, rect.x, rect.y, rect.w, rect.h, compact ? 12 : 16);
         ctx.fillStyle = 'rgba(255,255,255,0.025)';
         ctx.fill();
         ctx.lineWidth = 1.5;
@@ -970,14 +1622,14 @@ function ProjectorView() {
         ctx.restore();
 
         ctx.save();
-        ctx.font = "700 15px Poppins, system-ui, sans-serif";
+        ctx.font = compact ? "700 12px Poppins, system-ui, sans-serif" : "700 15px Poppins, system-ui, sans-serif";
         ctx.fillStyle = t.colour;
         ctx.textAlign = 'left';
-        ctx.fillText(`TEAM ${t.number}`, rect.x + 14, rect.y + 24);
+        ctx.fillText(`TEAM ${t.number}`, rect.x + 12, rect.y + (compact ? 18 : 24));
         ctx.font = "500 11px Inter, system-ui, sans-serif";
         ctx.fillStyle = 'rgba(245,240,232,.4)';
         ctx.textAlign = 'right';
-        ctx.fillText(`${t.memberIds.length}`, rect.x + rect.w - 14, rect.y + 24);
+        ctx.fillText(`${t.memberIds.length}`, rect.x + rect.w - 12, rect.y + (compact ? 18 : 24));
         ctx.restore();
 
         const memberNodes = t.memberIds.map((id) => nodesRef.current.find((n) => n.id === id)).filter(Boolean);
@@ -1001,7 +1653,7 @@ function ProjectorView() {
           ctx.shadowColor = n.colour; ctx.shadowBlur = 9;
           ctx.fillStyle = n.colour; ctx.fill(); ctx.shadowBlur = 0;
 
-          ctx.font = "500 10px Inter, system-ui, sans-serif";
+          ctx.font = compact ? "500 9px Inter, system-ui, sans-serif" : "500 10px Inter, system-ui, sans-serif";
           ctx.fillStyle = `rgba(245,240,232,${0.7 * entry})`;
           const boxCenterX = rect.x + rect.w / 2;
           const pad = 8;
@@ -1019,7 +1671,7 @@ function ProjectorView() {
     }
 
     function draw(ts) {
-      if (activityRef.current === 'jigsaw') {
+      if (activityRef.current === 'puzzle') {
         rafRef.current = requestAnimationFrame(draw);
         return;
       }
@@ -1046,17 +1698,17 @@ function ProjectorView() {
             n.wanderVx = Math.cos(angle) * speed;
             n.wanderVy = Math.sin(angle) * speed;
           }
-          // Continuous small jitter — without this a node's path is a
+          // Continuous small jitter, without this a node's path is a
           // perfectly straight bounce forever, and enough random initial
           // angles end up nearly edge-parallel, which is why older nodes
           // (more elapsed time) were the ones ending up stuck on the walls.
-          // No pull toward center — nodes are free to roam the whole
+          // No pull toward center, nodes are free to roam the whole
           // screen, edges and corners included.
           n.wanderVx += (Math.random() - 0.5) * 30 * dt;
           n.wanderVy += (Math.random() - 0.5) * 30 * dt;
         });
 
-        // Mild mutual repulsion so nodes spread out instead of overlapping —
+        // Mild mutual repulsion so nodes spread out instead of overlapping,
         // cheap even at a few hundred nodes since it's a plain distance check.
         for (let i = 0; i < nodes.length; i++) {
           for (let j = i + 1; j < nodes.length; j++) {
@@ -1092,8 +1744,10 @@ function ProjectorView() {
           n.x += n.wanderVx * dt;
           n.y += n.wanderVy * dt;
           const r = n.radius + 8;
+          // Keep roaming nodes out from behind the docked QR panel.
+          const rightWall = qrOpenRef.current ? w - QR_PANEL_WIDTH : w;
           if (n.x < r) { n.x = r; n.wanderVx = Math.abs(n.wanderVx); }
-          if (n.x > w - r) { n.x = w - r; n.wanderVx = -Math.abs(n.wanderVx); }
+          if (n.x > rightWall - r) { n.x = rightWall - r; n.wanderVx = -Math.abs(n.wanderVx); }
           if (n.y < top + r) { n.y = top + r; n.wanderVy = Math.abs(n.wanderVy); }
           if (n.y > h - r) { n.y = h - r; n.wanderVy = -Math.abs(n.wanderVy); }
         });
@@ -1192,12 +1846,7 @@ function ProjectorView() {
         updatePhysicsForPhase();
         applyTeamPositions(state.teams);
       }
-      setJigsawStartedAt(state.session.jigsawStartedAt);
-      setJigsawClockRunning(state.session.jigsawClockRunning);
-      if (state.jigsaw) {
-        setJigsawPieces(state.jigsaw.pieces);
-        setJigsawTeams(state.jigsaw.teams);
-      }
+      setBoard(state.puzzle || null);
     });
 
     socket.on('participants_update', (participants) => {
@@ -1222,13 +1871,11 @@ function ProjectorView() {
     socket.on('session_update', (session) => {
       setActivity(session.activity || 'constellation');
       setSessionState(session.state);
-      setJigsawStartedAt(session.jigsawStartedAt);
-      setJigsawClockRunning(session.jigsawClockRunning);
     });
 
     socket.on('teams_formed', ({ teams }) => {
       setTeams(teams); setSessionState('teams_formed'); setShowFormingBanner(true);
-      // Scatter outward first — nodes keep wandering until targets are
+      // Scatter outward first, nodes keep wandering until targets are
       // assigned below, which reads as the graph breaking apart.
       nodesRef.current.forEach((n) => {
         n.teamTarget = null;
@@ -1243,24 +1890,17 @@ function ProjectorView() {
       setTimeout(() => setShowFormingBanner(false), 4200);
     });
 
-    socket.on('jigsaw_started', (data) => {
-      setActivity('jigsaw'); setJigsawPieces(data.pieces); setJigsawTeams(data.teams);
-      setJigsawStartedAt(data.session.jigsawStartedAt); setJigsawClockRunning(true);
-    });
-    socket.on('jigsaw_board_update', (data) => { setJigsawPieces(data.pieces); setJigsawTeams(data.teams); });
-    socket.on('jigsaw_piece_placed', (piece) => {
-      const token = ++zoomTokenRef.current;
-      setZoomPiece(piece);
-      setTimeout(() => {
-        if (zoomTokenRef.current === token) setZoomPiece(null);
-      }, 6000);
-    });
-    socket.on('jigsaw_act2_unlocked', () => {});
+    // The projector asks for live board updates on every (re)connect.
+    const hello = () => socket.emit('hello', { role: 'projector' });
+    socket.on('connect', hello);
+    if (socket.connected) hello();
+    socket.on('puzzle_started', (b) => { setActivity('puzzle'); setBoard(b); });
+    socket.on('puzzle_board', (b) => { if (b) setBoard(b); });
 
     socket.on('reset', () => {
       nodesRef.current = []; persistentEdgesRef.current = []; flashEdgesRef.current = [];
       setTeams([]); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
-      setActivity('constellation'); setJigsawPieces([]); setJigsawTeams([]);
+      setActivity('constellation'); setBoard(null);
       stateRef.current = 'idle';
       updatePhysicsForPhase();
       if (simRef.current) { simRef.current.nodes([]); }
@@ -1269,18 +1909,21 @@ function ProjectorView() {
     return () => {
       socket.off('state_sync'); socket.off('participants_update');
       socket.off('answer_received'); socket.off('submitted_update'); socket.off('session_update'); socket.off('teams_formed');
-      socket.off('jigsaw_started'); socket.off('jigsaw_board_update'); socket.off('jigsaw_piece_placed');
-      socket.off('jigsaw_act2_unlocked'); socket.off('reset');
+      socket.off('connect', hello); socket.off('puzzle_started'); socket.off('puzzle_board'); socket.off('reset');
     };
   }, [ensureNode]);
 
   function applyTeamPositions(teamList) {
     const { w, h } = dims.current;
     const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // sunflower-pattern spacing
+    const count = teamList.length;
     teamList.forEach((team, i) => {
-      const rect = teamBlockRect(i, w, h);
-      const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2 + 10;
-      const clusterR = Math.min(rect.w, rect.h) * 0.36;
+      const rect = teamBlockRect(i, w, h, count);
+      const headerH = count > 10 ? 26 : 34;
+      const top = rect.y + headerH, bottom = rect.y + rect.h - 10;
+      const cx = rect.x + rect.w / 2, cy = (top + bottom) / 2;
+      const ry = ((bottom - top) / 2) * 0.82;
+      const rx = (rect.w / 2) * 0.5; // leaves room either side for name labels
       team.centre = { x: cx, y: cy };
       const n = team.memberIds.length || 1;
       team.memberIds.forEach((pid, idx) => {
@@ -1290,72 +1933,23 @@ function ProjectorView() {
         // across the whole disc instead of cramming everyone onto 1-2 thin
         // rings, so names have real breathing room between them.
         const t = (idx + 0.5) / n;
-        const r = clusterR * Math.sqrt(t);
+        const r = Math.sqrt(t);
         const angle = idx * GOLDEN_ANGLE;
-        node.teamTarget = { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
-        node.colour = team.colour; node.radius = 6.5;
+        node.teamTarget = { x: cx + Math.cos(angle) * r * rx, y: cy + Math.sin(angle) * r * ry };
+        node.colour = team.colour; node.radius = count > 10 ? 5 : 6.5;
       });
     });
     teamsRef.current = teamList;
   }
 
-  if (activity === 'jigsaw') {
-    return (
-      <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#07080b', color: '#f5f0e8', fontFamily: "'Inter',sans-serif" }}>
-        <div style={{ position: 'absolute', top: 22, left: 30, display: 'flex', alignItems: 'center', gap: 16 }}>
-          <img src="/logo.png" alt="" style={{ height: 34 }} />
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 26, letterSpacing: 3 }}>{clock}</span>
-        </div>
-
-        <div style={{
-          position: 'absolute', top: 90, left: '50%', transform: 'translateX(-50%)',
-          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10,
-          width: 'min(76vw, calc((100vh - 130px) * 1.25), 900px)',
-        }}>
-          {jigsawPieces.map((p) => {
-            const teamColour = jigsawTeams.find((t) => t.number === p.ownerTeamNumber)?.colour;
-            return (
-              <div key={p.slot} className={`lc-jig-slot ${p.placed ? 'placed' : ''} ${p.locked ? 'locked' : ''}`}
-                style={{ borderColor: p.placed ? teamColour + '88' : undefined, padding: 0 }}>
-                {p.placed ? (
-                  <PuzzleCrop slot={p.slot} fill rounded={9} />
-                ) : (
-                  <span style={{ opacity: 0.3, fontSize: 13 }}>{p.slot}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ position: 'absolute', top: 90, right: 26, display: 'flex', flexDirection: 'column', gap: 8, width: 190 }}>
-          {jigsawTeams.map((t) => (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.colour, boxShadow: `0 0 8px ${t.colour}` }} />
-              <span style={{ flex: 1 }}>Team {t.number}</span>
-              <span style={{ opacity: 0.5 }}>{t.placedCount}/2</span>
-            </div>
-          ))}
-        </div>
-
-        {zoomPiece && (
-          <div style={{
-            position: 'absolute', inset: 0, background: 'rgba(7,8,11,.92)', display: 'flex',
-            flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 28,
-            animation: 'lc-zoomin .4s ease-out both',
-          }}>
-            <PuzzleCrop slot={zoomPiece.slot} size={340} rounded={24}
-              style={{ boxShadow: '0 30px 90px rgba(0,0,0,.6), 0 0 70px rgba(232,185,35,.3)', border: '1px solid rgba(232,185,35,.35)' }} />
-            <span className="lc-badge">Delivered by Team {zoomPiece.ownerTeamNumber}</span>
-          </div>
-        )}
-      </div>
-    );
+  if (activity === 'puzzle') {
+    return <PuzzleProjector board={board} />;
   }
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#07080b' }}>
       <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0 }} />
-      <QrToggle joinUrl={joinUrl} />
+      <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={joinUrl} />
 
       {(sessionState === 'idle' || sessionState === 'populating' || sessionState === 'quiz_open' || sessionState === 'teams_formed') && (
         <div className="lc-fadein" style={{
@@ -1389,8 +1983,18 @@ function ProjectorView() {
               </>
             )}
           </div>
-          <div style={{ flex: 1, textAlign: 'right', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>
-            Convey Meaning. Create Significance.
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 18 }}>
+            <span style={{ fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>
+              Convey Meaning. Create Significance.
+            </span>
+            <button onClick={() => setQrOpen((o) => !o)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
+              border: `1px solid ${qrOpen ? '#e8571a' : 'rgba(255,255,255,.2)'}`,
+              background: qrOpen ? 'rgba(232,87,26,.18)' : 'rgba(255,255,255,.04)',
+              color: '#f5f0e8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>
+              <QrIcon size={15} /> {qrOpen ? 'Hide QR' : 'QR code'}
+            </button>
           </div>
         </div>
       )}
@@ -1398,7 +2002,7 @@ function ProjectorView() {
       {showFormingBanner && (
         <div className="lc-fadein" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: 'radial-gradient(circle, rgba(7,8,11,.72) 0%, transparent 65%)' }}>
           <div style={{ fontSize: 13, letterSpacing: '.3em', textTransform: 'uppercase', color: 'rgba(232,185,35,.8)', marginBottom: 14, fontWeight: 600 }}>Forming</div>
-          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>Ten Teams</div>
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>{({ 10: 'Ten', 20: 'Twenty' })[teams.length] || teams.length} Teams</div>
         </div>
       )}
     </div>
@@ -1420,12 +2024,9 @@ function FacilitatorView() {
   const [moveParticipantId, setMoveParticipantId] = useState('');
   const [moveTeamId, setMoveTeamId] = useState('');
   const [search, setSearch] = useState('');
-  const [jigsawTeams, setJigsawTeams] = useState([]);
-  const [jigsawStartedAt, setJigsawStartedAt] = useState(null);
-  const [jigsawClockRunning, setJigsawClockRunning] = useState(false);
+  const [pz, setPz] = useState(null);       // facilitator puzzle detail (includes codes)
+  const [board, setBoard] = useState(null); // same board the projector shows
   const [confirm, setConfirm] = useState(null);
-
-  const clock = useElapsedClock(jigsawStartedAt, jigsawClockRunning);
 
   useEffect(() => {
     function computeSubmitted(state) {
@@ -1442,29 +2043,30 @@ function FacilitatorView() {
       setSessionState(state.session.state);
       setTeams(state.teams);
       setSubmittedCount(computeSubmitted(state));
-      setJigsawStartedAt(state.session.jigsawStartedAt);
-      setJigsawClockRunning(state.session.jigsawClockRunning);
-      if (state.jigsaw) setJigsawTeams(state.jigsaw.teams);
+      setBoard(state.puzzle || null);
+      if (!state.puzzle) setPz(null);
     });
     socket.on('participants_update', (p) => { setParticipants(p); setJoinedCount(Object.keys(p).length); });
     socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
     socket.on('session_update', (session) => {
       setActivity(session.activity || 'constellation'); setSessionState(session.state);
-      setJigsawStartedAt(session.jigsawStartedAt); setJigsawClockRunning(session.jigsawClockRunning);
     });
     socket.on('teams_formed', ({ teams }) => { setTeams(teams); setSessionState('teams_formed'); });
-    socket.on('jigsaw_started', (data) => {
-      setActivity('jigsaw'); setJigsawTeams(data.teams); setJigsawStartedAt(data.session.jigsawStartedAt); setJigsawClockRunning(true);
-    });
-    socket.on('jigsaw_board_update', (data) => setJigsawTeams(data.teams));
+    // Announce as facilitator on every (re)connect to get codes and stats.
+    const hello = () => socket.emit('hello', { role: 'facilitator' });
+    socket.on('connect', hello);
+    if (socket.connected) hello();
+    socket.on('puzzle_started', (b) => { setActivity('puzzle'); setBoard(b); });
+    socket.on('puzzle_board', (b) => { if (b) setBoard(b); });
+    socket.on('puzzle_facilitator', (d) => { if (d) setPz(d); });
     socket.on('reset', () => {
       setActivity('constellation'); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
-      setTeams([]); setParticipants({}); setJigsawTeams([]);
+      setTeams([]); setParticipants({}); setPz(null); setBoard(null);
     });
     return () => {
       socket.off('state_sync'); socket.off('participants_update'); socket.off('submitted_update');
-      socket.off('session_update'); socket.off('teams_formed'); socket.off('jigsaw_started');
-      socket.off('jigsaw_board_update'); socket.off('reset');
+      socket.off('session_update'); socket.off('teams_formed'); socket.off('reset');
+      socket.off('connect', hello); socket.off('puzzle_started'); socket.off('puzzle_board'); socket.off('puzzle_facilitator');
     };
   }, []);
 
@@ -1479,24 +2081,14 @@ function FacilitatorView() {
       onConfirm: () => socket.emit('facilitator_reset'),
     });
   }
-  function startJigsaw() {
+  function startPuzzle() {
     setConfirm({
-      title: 'Start the jigsaw puzzle?',
-      message: 'Every phone will switch over to the puzzle view and the room clock starts running.',
+      title: 'Start the Accountability Puzzle?',
+      message: 'Every phone switches to the puzzle. Each team gets a captain, partner teams are shuffled, and the first 4 answerers per team get their scenarios.',
       confirmLabel: 'Start puzzle',
-      onConfirm: () => socket.emit('facilitator_start_jigsaw'),
+      onConfirm: () => socket.emit('facilitator_start_puzzle'),
     });
   }
-  function restartJigsaw() {
-    setConfirm({
-      title: 'Restart the jigsaw?',
-      message: 'Fresh transfer codes will be generated and the board resets to empty. Teams stay as they are.',
-      confirmLabel: 'Restart puzzle',
-      danger: true,
-      onConfirm: () => socket.emit('facilitator_restart_jigsaw'),
-    });
-  }
-  function sendHint(teamNumber) { socket.emit('facilitator_jigsaw_hint', { teamNumber }); }
   function moveParticipant() {
     if (!moveParticipantId || !moveTeamId) return;
     socket.emit('facilitator_move_participant', { participantId: moveParticipantId, teamId: moveTeamId });
@@ -1548,7 +2140,7 @@ function FacilitatorView() {
               {sessionState === 'idle' && (
                 <>
                   <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
-                    Once you start, every joined phone gets all {questions.length || 6} questions at once — people answer at their own pace, no need to push each question.
+                    Once you start, every joined phone gets all {questions.length || 6} questions at once, people answer at their own pace, no need to push each question.
                   </p>
                   <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
                 </>
@@ -1556,11 +2148,11 @@ function FacilitatorView() {
               {sessionState === 'quiz_open' && (
                 <>
                   <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 500 }}>Quiz is open</p>
-                  <p className="lc-faint" style={{ marginTop: 0 }}>People are answering at their own pace. You never need everyone to finish — make teams whenever the room feels ready.</p>
+                  <p className="lc-faint" style={{ marginTop: 0 }}>People are answering at their own pace. You never need everyone to finish, make teams whenever the room feels ready.</p>
                 </>
               )}
               {sessionState === 'teams_formed' && (
-                <p style={{ margin: 0, fontSize: 16, color: 'var(--ink-dim)' }}>Teams are formed. Start the jigsaw puzzle below when ready.</p>
+                <p style={{ margin: 0, fontSize: 16, color: 'var(--ink-dim)' }}>Teams are formed. Start the Accountability Puzzle below when ready.</p>
               )}
             </div>
 
@@ -1578,6 +2170,7 @@ function FacilitatorView() {
                   {teams.map((t) => (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, background: 'rgba(255,255,255,.03)', border: `1px solid ${t.colour}44`, fontSize: 13 }}>
                       <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.colour, boxShadow: `0 0 10px ${t.colour}` }} />Team {t.number}<b style={{ color: t.colour }}>{t.memberIds.length}</b>
+                      <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>{t.memberIds.filter((id) => participants[id] && participants[id].gender === 'female').length}F</span>
                     </div>
                   ))}
                 </div>
@@ -1594,7 +2187,7 @@ function FacilitatorView() {
                   <button className="lc-btn lc-btn-primary" onClick={moveParticipant}>Move</button>
                 </div>
                 <div className="lc-btn-row" style={{ marginTop: 18 }}>
-                  <button className="lc-btn lc-btn-gold" onClick={startJigsaw} style={{ width: '100%' }}>✦ Start the Jigsaw Puzzle →</button>
+                  <button className="lc-btn lc-btn-gold" onClick={startPuzzle} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><Icon name="puzzle" size={18} /> Start the Accountability Puzzle</button>
                 </div>
               </div>
             )}
@@ -1623,35 +2216,11 @@ function FacilitatorView() {
           </>
         )}
 
-        {activity === 'jigsaw' && (
+        {activity === 'puzzle' && (
           <>
-            <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-              <div className="lc-stat-card"><div className="lc-stat-label">Room clock</div><div className="lc-stat-value" style={{ fontSize: 32 }}>{clock}</div></div>
-              <div className="lc-stat-card"><div className="lc-stat-label">Act</div><div className="lc-stat-value">{sessionState === 'act1' ? 'One' : sessionState === 'act2' ? 'Two — rocket' : 'Complete'}</div></div>
-              <div className="lc-stat-card"><div className="lc-stat-label">Placed</div><div className="lc-stat-value">{jigsawTeams.reduce((s, t) => s + (t.placedCount || 0), 0)}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/20</span></div></div>
-            </div>
-
-            <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
-              <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 16px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Teams — hint if stuck</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
-                {jigsawTeams.map((t) => (
-                  <div key={t.id} className="lc-card" style={{ padding: '12px 14px', border: `1px solid ${t.colour}33` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.colour }} />
-                      <b>Team {t.number}</b>
-                      <span style={{ marginLeft: 'auto', fontSize: 13, opacity: .6 }}>{t.placedCount}/2</span>
-                    </div>
-                    <button className="lc-btn lc-btn-outline" style={{ width: '100%', padding: '8px', fontSize: 13 }} onClick={() => sendHint(t.number)} disabled={t.placedCount >= 2}>
-                      Reveal a hint
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="lc-card" style={{ padding: 24 }}>
+            <PuzzleFacilitatorPanel pz={pz} board={board} onConfirm={setConfirm} />
+            <div className="lc-card" style={{ padding: 22 }}>
               <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-outline" onClick={restartJigsaw}>Restart jigsaw (fresh codes)</button>
                 <button className="lc-btn lc-btn-danger" onClick={resetAll}>Reset entire session</button>
               </div>
             </div>
