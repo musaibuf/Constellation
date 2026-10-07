@@ -69,10 +69,12 @@ function uniqueName(base) {
   return `${base} (${n})`;
 }
 
+// One pass over the answers (the old version re-scanned every answer for
+// every person and question, which got very slow with 200 people answering).
 function submittedCount() {
-  return Object.keys(participants).filter(pid =>
-    QUESTIONS.every((_, qi) => answers.some(a => a.participantId === pid && a.questionIndex === qi))
-  ).length;
+  const perPerson = {};
+  answers.forEach(a => { if (participants[a.participantId]) perPerson[a.participantId] = (perPerson[a.participantId] || 0) + 1; });
+  return Object.values(perPerson).filter(n => n >= QUESTIONS.length).length;
 }
 
 // ============================================================
@@ -649,6 +651,25 @@ setInterval(() => {
 // ============================================================
 // SOCKET EVENTS
 // ============================================================
+// Phones only need their own answers, never everyone's, and no puzzle board.
+// Keeps every reconnect small when 200 phones are in the room.
+function phoneState(pid) {
+  return {
+    session, participants, teams, questions: QUESTIONS,
+    answers: pid ? answers.filter(a => a.participantId === pid) : [],
+    puzzle: null,
+  };
+}
+function stateFor(socket) {
+  return socket.data.role === 'phone' ? phoneState(socket.data.pid) : fullState();
+}
+// Join counter for phones: a tiny number instead of the whole guest list.
+// The full list only goes to the projector and facilitator screens.
+function broadcastRoster() {
+  io.to('projectors').to('facilitators').emit('participants_update', participants);
+  io.emit('room_count', { count: Object.keys(participants).length });
+}
+
 function fullState() {
   return {
     session, participants, answers, teams, questions: QUESTIONS,
@@ -658,7 +679,10 @@ function fullState() {
 }
 
 io.on('connection', (socket) => {
-  socket.emit('state_sync', fullState());
+  // Phones say role=phone when they connect and get their snapshot once they
+  // identify. Projector, facilitator and older clients get the full state now.
+  socket.data.role = (socket.handshake.query && socket.handshake.query.role) || 'screen';
+  if (socket.data.role !== 'phone') socket.emit('state_sync', fullState());
 
   // Projector and facilitator screens announce themselves so they receive
   // the board and the facilitator detail (codes included) respectively.
@@ -683,12 +707,13 @@ io.on('connection', (socket) => {
       markOnline(socket, id);
       if (puzzle) socket.emit('puzzle_me', puzzleStateFor(id));
     }
+    if (socket.data.role === 'phone') socket.emit('state_sync', phoneState(socket.data.pid));
   });
 
   // Phones ask for a fresh snapshot when they come back to the foreground,
   // in case events arrived while the tab was frozen in the background.
   socket.on('request_sync', () => {
-    socket.emit('state_sync', fullState());
+    socket.emit('state_sync', stateFor(socket));
     if (puzzle && socket.data.pid) socket.emit('puzzle_me', puzzleStateFor(socket.data.pid));
   });
 
@@ -706,7 +731,7 @@ io.on('connection', (socket) => {
     if (participants[id]) {
       markOnline(socket, id);
       socket.emit('joined', participants[id]);
-      socket.emit('state_sync', fullState());
+      socket.emit('state_sync', stateFor(socket));
       if (puzzle) socket.emit('puzzle_me', puzzleStateFor(id));
       return;
     }
@@ -725,7 +750,7 @@ io.on('connection', (socket) => {
         const p = candidates[0];
         markOnline(socket, p.id);
         socket.emit('joined', p);
-        socket.emit('state_sync', fullState());
+        socket.emit('state_sync', stateFor(socket));
         if (puzzle) socket.emit('puzzle_me', puzzleStateFor(p.id));
         return;
       }
@@ -739,8 +764,8 @@ io.on('connection', (socket) => {
     participants[id] = { id, name: finalName, gender, joinedAt: Date.now(), teamId: null };
     markOnline(socket, id);
     socket.emit('joined', participants[id]);
-    socket.emit('state_sync', fullState());
-    io.emit('participants_update', participants);
+    socket.emit('state_sync', stateFor(socket));
+    broadcastRoster();
   });
 
   socket.on('submit_answer', ({ participantId, questionIndex, optionIndex } = {}) => {
@@ -753,8 +778,9 @@ io.on('connection', (socket) => {
     const answer = { participantId, questionIndex, optionIndex, answeredAt: Date.now() };
     answers.push(answer);
     socket.emit('answer_confirmed', answer);
-    io.emit('answer_received', answer);
-    io.emit('submitted_update', { submitted: submittedCount(), total: Object.keys(participants).length });
+    // Only the big screens draw answers; phones never needed these.
+    io.to('projectors').emit('answer_received', answer);
+    io.to('projectors').to('facilitators').emit('submitted_update', { submitted: submittedCount(), total: Object.keys(participants).length });
   });
 
   // ---------- CONSTELLATION FACILITATOR CONTROLS ----------
@@ -790,7 +816,7 @@ io.on('connection', (socket) => {
     delete participants[participantId];
     answers = answers.filter(a => a.participantId !== participantId);
     teams.forEach(t => { t.memberIds = t.memberIds.filter(id => id !== participantId); });
-    io.emit('participants_update', participants);
+    broadcastRoster();
     // Team rosters changed too, so every phone drops the removed person.
     if (teams.length > 0) io.emit('teams_formed', { teams, participants });
     if (puzzle) {

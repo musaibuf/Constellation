@@ -7,7 +7,12 @@ import { QRCodeSVG } from 'qrcode.react';
    SOCKET
    ============================================================ */
 const SERVER_URL = 'https://constellation-backend-4d88.onrender.com';
+// Phones identify as 'phone' so the server sends them a slim snapshot and
+// a join counter instead of the full guest list on every join.
+const SOCKET_ROLE = window.location.pathname.startsWith('/projector') ? 'projector'
+  : window.location.pathname.startsWith('/facilitator') ? 'facilitator' : 'phone';
 const socket = io(SERVER_URL, {
+  query: { role: SOCKET_ROLE },
   autoConnect: true,
   reconnection: true,
   reconnectionAttempts: Infinity,
@@ -357,7 +362,7 @@ function ParticipantView() {
     });
     socket.on('answer_confirmed', () => setPending(false));
     socket.on('join_error', ({ message }) => setJoinError(message));
-    socket.on('participants_update', (p) => setJoinedCount(Object.keys(p).length));
+    socket.on('room_count', ({ count }) => setJoinedCount(count));
     socket.on('teams_formed', ({ teams, participants }) => {
       const me = participants[participantId];
       if (!me) return;
@@ -381,7 +386,7 @@ function ParticipantView() {
     });
     return () => {
       socket.off('state_sync', restoreFromState);
-      socket.off('joined'); socket.off('join_error'); socket.off('participants_update');
+      socket.off('joined'); socket.off('join_error'); socket.off('room_count');
       socket.off('teams_formed'); socket.off('reset');
       socket.off('answer_confirmed'); socket.off('session_update'); socket.off('puzzle_started');
     };

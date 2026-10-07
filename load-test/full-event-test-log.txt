@@ -1,0 +1,1599 @@
+FULL EVENT TEST  run ay9z
+Server:  https://constellation-backend-4d88.onrender.com
+People:  200 (14 female, 186 male), 20 teams
+Log file: full-event-test-log.txt
+  PASS  Server reset to an empty room
+
+==============================================================================
+  PART 1  SIGN UP (200 people)
+==============================================================================
+  PASS  200 phones connected  (200/200)
+
+  Edge cases at sign up:
+  PASS  "Ayesha A" joins WITHOUT choosing a gender -> rejected  (server says: Please select your gender.)
+  PASS  "Fatima A" sends an invalid gender value -> rejected
+  PASS  Blank name -> rejected
+  PASS  Name longer than 20 characters -> rejected
+  PASS  None of the rejected attempts were added to the room  (0 in room)
+  PASS  Those 4 people retry correctly and get in
+  PASS  Two different people both called "Ali K" are kept apart  ("Ali K" and "Ali K (2)")
+  PASS  Extra spaces around a name are trimmed  ("  Amna A  " saved as "Amna A")
+  PASS  "Mahnoor A" refreshes and joins again -> same person, no duplicate  (room count 8 -> 8)
+
+  Everyone else joining...
+  PASS  All 200 people are in the room  (200)
+  PASS  Gender recorded for every person
+  PASS  Female count on the server = 14
+  FAIL  Projector join counter shows the same number  (projector shows 27)
+
+==============================================================================
+  PART 2  QUIZ
+==============================================================================
+  6 questions:
+    Q1. On a long road trip, you're the one:  [Driving | Navigating | Picking the music | Handling the snacks | Asleep in the back]
+    Q2. Pick your spot in the cricket team:  [Opening batter | Finisher | Fast bowler | Spinner | Wicketkeeper]
+    Q3. When you're stuck, how long before you ask for help?  [Straight away | About an hour | I'll figure it out myself | I'll suffer in silence]
+    Q4. Your restaurant on a Saturday night feels like:  [A wedding hall | A cricket stadium | A railway station | A concert | A well-oiled machine]
+    Q5. Your order when you actually get to choose:  [Chai | Coffee | Cold drink | Juice | Just water]
+    Q6. Your KFC order on a day off:  [Zinger | Mighty Zinger | Hot Wings | Krunch Burger | Just fries | I'm not eating KFC on my day off]
+
+  Edge cases in the quiz:
+  PASS  "Iqra A" answers BEFORE the quiz opens -> ignored
+  FAIL  Quiz opens
+  FAIL  "Noor A" answers Q1 twice -> only the first answer counts
+  PASS  Answer to a question that does not exist -> ignored
+  PASS  Answer from an unknown person -> ignored
+  FAIL  Total answers stored = 1179  (0)
+  FAIL  195 finished, 3 stopped halfway, 2 answered nothing  (facilitator shows null submitted)
+
+==============================================================================
+  PART 3  TEAM FORMATION
+==============================================================================
+  FAIL  Every phone receives its team
+
+  Teams as formed:
+  Team  Size  F   M   Mix   Members
+  1     10    0   10  90%   Ali K, Saad A, Shoaib A, Saad B, Haris B, Haris C, Hamza D, Talha D, Yasir E, Hamza F
+  2     10    1   9   93%   Rabia A (F), Ahmed A, Junaid A, Omar B, Hassan C, Taha C, Omar D, Hassan E, Imran E, Faisal F
+  3     10    1   9   88%   Anum A (F), Usman A, Salman A, Arsalan B, Asad C, Shoaib C, Bilal D, Usman E, Junaid E, Kamran F
+  4     10    1   9   97%   Iqra A (F), Omar A, Talha A, Faisal B, Omar C, Moiz C, Imran D, Shoaib D, Rizwan E, Saad F
+  5     10    1   9   90%   Hina A (F), Zain A, Moiz A, Shahzaib B, Moiz B, Waleed C, Shahzaib D, Zain E, Farhan E, Omar F
+  6     10    0   10  84%   Ali K (2), Asad A, Rehan A, Taha B, Salman B, Salman C, Hassan D, Owais D, Moiz E, Shahzaib F
+  7     10    0   10  77%   Hamza A, Shahzaib A, Bilal B, Rehan B, Imran C, Junaid D, Moiz D, Haris E, Imran F, Salman F
+  8     10    1   9   93%   Zainab A (F), Imran A, Ahmed B, Shoaib B, Junaid C, Danish D, Rizwan D, Arsalan E, Taha F, Usman G
+  9     10    1   9   83%   Ayesha A (F), Faisal A, Waleed B, Usman C, Danish C, Taha D, Saad E, Faisal E, Waleed F, Moiz F
+  10    10    1   9   94%   Aiman A (F), Danish A, Fahad B, Rizwan B, Arsalan C, Yasir D, Adeel D, Taha E, Asad F, Farhan F
+  11    10    1   9   88%   Fatima A (F), Taha A, Usman B, Hamza C, Rizwan C, Fahad D, Asad E, Waleed E, Ahmed F, Bilal G
+  12    10    1   9   84%   Mahnoor A (F), Kamran A, Junaid B, Bilal C, Adeel C, Saad D, Fahad E, Danish E, Danish F, Haris F
+  13    10    1   9   87%   Noor A (F), Adeel A, Hassan B, Saad C, Yasir C, Ahmed D, Omar E, Adeel E, Fahad F, Adeel F
+  14    10    1   9   93%   Amna A (F), Haris A, Asad B, Farhan B, Shahzaib C, Usman D, Bilal E, Shoaib E, Bilal F, Hamza G
+  15    10    0   10  94%   Fahad A, Owais A, Hamza B, Zain C, Rehan C, Waleed D, Farhan D, Talha E, Junaid F, Ahmed G
+  16    10    1   9   94%   Hira A (F), Arsalan A, Yasir B, Ahmed C, Owais C, Kamran D, Ahmed E, Owais E, Yasir F, Rizwan F
+  17    10    1   9   84%   Sana A (F), Rizwan A, Zain B, Adeel B, Farhan C, Asad D, Hamza E, Rehan E, Usman F, Talha F
+  18    10    0   10  91%   Hassan A, Waleed A, Imran B, Talha B, Kamran C, Faisal D, Haris D, Kamran E, Hassan F, Owais F
+  19    10    0   10  87%   Bilal A, Farhan A, Danish B, Owais B, Faisal C, Arsalan D, Rehan D, Shahzaib E, Arsalan F, Rehan F
+  20    10    1   9   93%   Maryam A (F), Yasir A, Kamran B, Fahad C, Talha C, Zain D, Salman D, Salman E, Zain F, Shoaib F
+  Mix = how varied the answers inside a team are (100% = nobody in the team gave the same answer to any question).
+
+  Checks:
+  PASS  20 teams created
+  PASS  Every person is in exactly one team  (200 people)
+  PASS  Team sizes are even (differ by at most 1)  (smallest 10, largest 10)
+  PASS  People who stopped halfway or answered nothing still got a team
+  PASS  Only 14 women: 14 teams get exactly 1, the rest get 0  (women per team: 0 1 1 1 1 0 0 1 1 1 1 1 1 1 0 1 1 0 0 1)
+  PASS  No team gets a 2nd woman while another team has none
+  PASS  Teams are mixed (no team where everyone gave the same answer to a question)  (average mix 89%)
+  FAIL  Every phone shows the same team the server has  (197/200 phones match)
+
+  Edge cases after teams:
+  PASS  "Zain A" loses their phone storage, re-enters only their name (no gender) -> gets their own team back  (recovered as Team 5)
+  PASS  Someone types "Omar A" while that person is online, no gender -> not merged, asked for gender  (Please select your gender.)
+  PASS  Someone joins AFTER teams are made -> in the room but on no team yet
+
+==============================================================================
+  PART 4  PUZZLE STARTS
+==============================================================================
+  FAIL  Every team member's phone switched to the puzzle  (96/200)
+  PASS  Late joiner (no team yet) gets no puzzle role until the facilitator places them
+  PASS  Projector board starts at 0 of 80 unlocked  (0/80)
+
+  Captains and round 1:
+  Team  Captain           Sends to  Round 1 answerers
+  1     Talha D           Team 19   Shoaib A, Saad B, Haris B, Haris C
+  2     Omar B            Team 17   Hassan C, Rabia A, Omar D, Taha C
+  3     Usman A           Team 1    Salman A, Anum A, Arsalan B, Usman E
+  4     Imran D           Team 2    Iqra A, Shoaib D, Omar C, Omar A
+  5     Zain A            Team 16   Hina A, Shahzaib B, Moiz A, Hina A
+  6     Asad A            Team 12   Rehan A, Taha B, Ali K (2), Rehan A
+  7     Junaid D          Team 11   Hamza A, Shahzaib A, Hamza A, Shahzaib A
+  8     Zainab A          Team 20   Imran A, Shoaib B, Ahmed B, Junaid C
+  9     Usman C           Team 15   Danish C, Faisal A, Waleed B, Taha D
+  10    Rizwan B          Team 6    Arsalan C, Aiman A, Danish A, Arsalan C
+  11    Rizwan C          Team 3    Taha A, Waleed E, Fatima A, Fahad D
+  12    Adeel C           Team 7    Saad D, Kamran A, Bilal C, Mahnoor A
+  13    Noor A            Team 14   Adeel A, Omar E, Yasir C, Saad C
+  14    Farhan B          Team 18   Amna A, Asad B, Amna A, Asad B
+  15    Owais A           Team 13   Waleed D, Fahad A, Farhan D, Rehan C
+  16    Hira A            Team 9    Kamran D, Owais C, Ahmed C, Ahmed E
+  17    Hamza E           Team 5    Asad D, Zain B, Sana A, Rizwan A
+  18    Kamran E          Team 4    Hassan A, Waleed A, Hassan A, Waleed A
+  19    Farhan A          Team 8    Shahzaib E, Bilal A, Shahzaib E, Bilal A
+  20    Maryam A          Team 10   Talha C, Yasir A, Zain D, Talha C
+  PASS  Each team has exactly 1 captain, and the whole team agrees who it is
+  FAIL  Round 1: 4 different answerers per team, all from that team, captain not answering
+
+==============================================================================
+  PART 5  PUZZLE EDGE CASES
+==============================================================================
+  PASS  Non-captain "Saad A" (Team 1) tries to enter a code -> blocked
+  PASS  "Rabia A" tries to answer digit 1, which belongs to "Hassan C" -> ignored
+  PASS  Answer with an option that does not exist (7) -> ignored
+  PASS  Captain "Usman A" refreshes -> still captain
+  PASS  Answerer "Anum A" refreshes -> same question still waiting (digit 2, S22)
+  PASS  Late joiner moved into Team 4 mid-puzzle -> phone switches to Team 4 puzzle
+  PASS  Captain "Zain A" (Team 5) is removed by the facilitator -> new captain right away  (now Hina A)
+
+  Dropping a captain (Team 6) and an answerer (Team 7) offline. Waiting for automatic handover (20 to 35s)...
+  PASS  Captain "Asad A" offline -> captain role handed to "Rehan A"  (after ~22s offline)
+  PASS  Answerer "Shahzaib A" offline -> digit 2 handed to "Junaid D"  (after ~32s offline)
+  PASS  New answerer's phone now shows the question
+  PASS  "Asad A" comes back -> rejoins Team 6 as a normal member
+
+==============================================================================
+  PART 6  UNLOCKING ALL 80 PIECES, ONE BY ONE
+==============================================================================
+  For each piece: the sending team's 4 answerers, their scenario, choice and digit,
+  the code, the receiving captain, the behaviours explained back, and a sync check.
+
+[ 1/80] ROUND 1   Team 1  ->  Team 19   (Team 19 captain: Farhan A)
+    digit 1  Shoaib A       S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 1 "Own the score" [Own It]  -> phone shows digit 1  OK
+  PASS  [ 1/80] edge: double tap on an answer keeps the first choice
+    digit 2  Saad B         S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Haris B        S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 2 "Get other views" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Haris C        S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 1-2-2-3  shown on 8/8 Team 1 phones OK
+    Team 19: 3/3 phones show "Team 1 on the way" OK
+    edge: captain types 3 wrong codes in a row
+  PASS  [ 1/80] edge: 3 wrong codes -> code entry paused 20s
+  PASS  [ 1/80] edge: even the right code is refused during the pause
+    waiting out the 20s pause...
+    captain Farhan A enters 1223 -> accepted
+  PASS  [ 1/80] edge: non-captain "Bilal A" tries to confirm behaviours -> blocked
+    behaviours explained back: Own It (match) | Ask for Help (match) | Ask for Help (match) | Ask for Help (chose Reflect & Learn)
+    UNLOCKED  Team 19 piece 1/4, board 1/80, Team 1 sent 1/4, next: Team 1 round 2 -> Team 16
+    sync: projector OK | Team 19 phones 3/3 | Team 1 phones 8/8 | facilitator OK | feed OK   (25.0s)
+  PASS  [ 1/80] Team 1 -> Team 19 delivered and everything in sync
+
+[ 2/80] ROUND 1   Team 2  ->  Team 17   (Team 17 captain: Hamza E)
+    digit 1  Hassan C       S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 3 "Stand by the call" [Own It]  -> phone shows digit 3  OK
+    digit 2  Rabia A        S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    digit 3  Omar D         S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 2 "Time every peak yourself" [Show Up]  -> phone shows digit 2  OK
+    digit 4  Taha C         S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 3 "Grow station coaches" [Lift Others]  -> phone shows digit 3  OK
+    code 3-3-2-3  shown on 6/6 Team 2 phones OK
+    Team 17: 5/5 phones show "Team 2 on the way" OK
+    captain Hamza E enters 3323 -> accepted
+    behaviours explained back: Own It (match) | Own It (match) | Show Up (match) | Reflect & Learn (chose Lift Others)
+    UNLOCKED  Team 17 piece 1/4, board 2/80, Team 2 sent 1/4, next: Team 2 round 2 -> Team 1
+    sync: projector OK | Team 17 phones 5/5 | Team 2 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [ 2/80] Team 2 -> Team 17 delivered and everything in sync
+
+[ 3/80] ROUND 1   Team 3  ->  Team 1   (Team 1 captain: Talha D)
+    digit 1  Salman A       S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 2 "Raise the equipment issue" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Anum A         S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 3 "Ask those closest to it" [Ask for Help]  -> phone shows digit 3  OK
+    digit 3  Arsalan B      S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Usman E        S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 1 "Take the floor yourself" [Show Up]  -> phone shows digit 1  OK
+    code 2-3-2-1  shown on 5/5 Team 3 phones OK
+    Team 1: 8/8 phones show "Team 3 on the way" OK
+    captain Talha D enters 2321 -> accepted
+    behaviours explained back: Lift Others (chose Ask for Help) | Ask for Help (match) | Reflect & Learn (match) | Show Up (match)
+    UNLOCKED  Team 1 piece 1/4, board 3/80, Team 3 sent 1/4, next: Team 3 round 2 -> Team 5
+    sync: projector OK | Team 1 phones 8/8 | Team 3 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [ 3/80] Team 3 -> Team 1 delivered and everything in sync
+
+[ 4/80] ROUND 1   Team 4  ->  Team 2   (Team 2 captain: Omar B)
+    digit 1  Iqra A         S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 2 "Learn from the best" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Shoaib D       S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 3 "Find the gap afterwards" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Omar C         S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 1 "Apologise and compensate immediately" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Omar A         S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 3 "Make it the team's mission" [Lift Others]  -> phone shows digit 3  OK
+    code 2-3-1-3  shown on 6/6 Team 4 phones OK
+    Team 2: 6/6 phones show "Team 4 on the way" OK
+    captain Omar B enters 2313 -> accepted
+    behaviours explained back: Ask for Help (match) | Reflect & Learn (match) | Show Up (match) | Lift Others (match)
+    UNLOCKED  Team 2 piece 1/4, board 4/80, Team 4 sent 1/4, next: Team 4 round 2 -> Team 3
+    sync: projector OK | Team 2 phones 6/6 | Team 4 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [ 4/80] Team 4 -> Team 2 delivered and everything in sync
+
+[ 5/80] ROUND 1   Team 5  ->  Team 16   (Team 16 captain: Hira A)
+    digit 1  Hina A         S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 3 "Check it yourself every peak" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Shahzaib B     S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 3 "Stand by the call" [Own It]  -> phone shows digit 3  OK
+    digit 3  Moiz A         S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 3 "Look at what you missed" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Hina A         S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 2 "Learn from the best" [Ask for Help]  -> phone shows digit 2  OK
+    code 3-3-3-2  shown on 3/3 Team 5 phones OK
+    Team 16: 6/6 phones show "Team 5 on the way" OK
+    captain Hira A enters 3332 -> accepted
+    behaviours explained back: Show Up (match) | Own It (match) | Reflect & Learn (match) | Ask for Help (match)
+    UNLOCKED  Team 16 piece 1/4, board 5/80, Team 5 sent 1/4, next: Team 5 round 2 -> Team 8
+    sync: projector OK | Team 16 phones 6/6 | Team 5 phones 3/3 | facilitator OK | feed OK   (2.0s)
+  PASS  [ 5/80] Team 5 -> Team 16 delivered and everything in sync
+
+[ 6/80] ROUND 1   Team 6  ->  Team 12   (Team 12 captain: Adeel C)
+    digit 1  Rehan A        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Taha B         S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 2 "Check if it is a pattern" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Ali K (2)      S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 1 "Learn from someone who has" [Ask for Help]  -> phone shows digit 1  OK
+    digit 4  Rehan A        S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 3-2-1-3  shown on 4/4 Team 6 phones OK
+    Team 12: 6/6 phones show "Team 6 on the way" OK
+    captain Adeel C enters 3213 -> accepted
+    behaviours explained back: Lift Others (match) | Show Up (chose Reflect & Learn) | Ask for Help (match) | Reflect & Learn (match)
+    UNLOCKED  Team 12 piece 1/4, board 6/80, Team 6 sent 1/4, next: Team 6 round 2 -> Team 18
+    sync: projector OK | Team 12 phones 6/6 | Team 6 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [ 6/80] Team 6 -> Team 12 delivered and everything in sync
+
+[ 7/80] ROUND 1   Team 7  ->  Team 11   (Team 11 captain: Rizwan C)
+    digit 1  Hamza A        S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Junaid D       S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 1 "Check the fix daily" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Hamza A        S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 1 "Own it with the customer" [Own It]  -> phone shows digit 1  OK
+    digit 4  Hamza A        S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    code 2-1-1-3  shown on 3/3 Team 7 phones OK
+    Team 11: 5/5 phones show "Team 7 on the way" OK
+    captain Rizwan C enters 2113 -> accepted
+    behaviours explained back: Ask for Help (match) | Show Up (match) | not explained | Own It (match)
+    UNLOCKED  Team 11 piece 1/4, board 7/80, Team 7 sent 1/4, next: Team 7 round 2 -> Team 2
+    sync: projector OK | Team 11 phones 5/5 | Team 7 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [ 7/80] Team 7 -> Team 11 delivered and everything in sync
+
+[ 8/80] ROUND 1   Team 8  ->  Team 20   (Team 20 captain: Maryam A)
+    digit 1  Imran A        S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 3 "Use it as a teaching moment" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Shoaib B       S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 2 "Hand one thing over" [Lift Others]  -> phone shows digit 2  OK
+    digit 3  Ahmed B        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    digit 4  Junaid C       S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    code 3-2-3-1  shown on 5/5 Team 8 phones OK
+    Team 20: 4/4 phones show "Team 8 on the way" OK
+    captain Maryam A enters 3231 -> accepted
+    behaviours explained back: Lift Others (match) | Lift Others (match) | Lift Others (match) | not explained
+    UNLOCKED  Team 20 piece 1/4, board 8/80, Team 8 sent 1/4, next: Team 8 round 2 -> Team 15
+    sync: projector OK | Team 20 phones 4/4 | Team 8 phones 5/5 | facilitator OK | feed OK   (2.0s)
+  PASS  [ 8/80] Team 8 -> Team 20 delivered and everything in sync
+
+[ 9/80] ROUND 1   Team 9  ->  Team 15   (Team 15 captain: Owais A)
+    digit 1  Danish C       S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 3 "Involve your team in the recovery" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Faisal A       S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 2 "Own her readiness" [Own It]  -> phone shows digit 2  OK
+    digit 3  Waleed B       S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 2 "Run the next rush alongside them" [Show Up]  -> phone shows digit 2  OK
+    digit 4  Taha D         S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 3 "Reset the rule for everyone" [Show Up]  -> phone shows digit 3  OK
+    code 3-2-2-3  shown on 6/6 Team 9 phones OK
+    Team 15: 6/6 phones show "Team 9 on the way" OK
+    captain Owais A enters 3223 -> accepted
+    behaviours explained back: Ask for Help (chose Lift Others) | Show Up (chose Own It) | Show Up (match) | Show Up (match)
+    UNLOCKED  Team 15 piece 1/4, board 9/80, Team 9 sent 1/4, next: Team 9 round 2 -> Team 10
+    sync: projector OK | Team 15 phones 6/6 | Team 9 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [ 9/80] Team 9 -> Team 15 delivered and everything in sync
+
+[10/80] ROUND 1   Team 10  ->  Team 6   (Team 6 captain: Rehan A)
+    digit 1  Arsalan C      S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 1 "Apologise and compensate immediately" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Aiman A        S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 1 "Learn from someone who has" [Ask for Help]  -> phone shows digit 1  OK
+    digit 3  Danish A       S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 3 "Stand by the call" [Own It]  -> phone shows digit 3  OK
+    digit 4  Arsalan C      S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 1 "Tell them now" [Own It]  -> phone shows digit 1  OK
+    code 1-1-3-1  shown on 4/4 Team 10 phones OK
+    Team 6: 4/4 phones show "Team 10 on the way" OK
+    captain Rehan A enters 1131 -> accepted
+    behaviours explained back: Show Up (match) | Ask for Help (match) | Own It (match) | Own It (match)
+    UNLOCKED  Team 6 piece 1/4, board 10/80, Team 10 sent 1/4, next: Team 10 round 2 -> Team 14
+    sync: projector OK | Team 6 phones 4/4 | Team 10 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [10/80] Team 10 -> Team 6 delivered and everything in sync
+
+[11/80] ROUND 1   Team 11  ->  Team 3   (Team 3 captain: Usman A)
+    digit 1  Taha A         S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Waleed E       S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Fatima A       S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    digit 4  Fahad D        S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 2 "Bring in the safety team" [Ask for Help]  -> phone shows digit 2  OK
+    code 3-2-3-2  shown on 5/5 Team 11 phones OK
+    Team 3: 5/5 phones show "Team 11 on the way" OK
+    captain Usman A enters 3232 -> accepted
+    behaviours explained back: Own It (chose Reflect & Learn) | Ask for Help (match) | Own It (match) | Ask for Help (match)
+    UNLOCKED  Team 3 piece 1/4, board 11/80, Team 11 sent 1/4, next: Team 11 round 2 -> Team 17
+    sync: projector OK | Team 3 phones 5/5 | Team 11 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [11/80] Team 11 -> Team 3 delivered and everything in sync
+
+[12/80] ROUND 1   Team 12  ->  Team 7   (Team 7 captain: Junaid D)
+    digit 1  Saad D         S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 2 "Trace the 8%" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Kamran A       S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 1 "Tell them now" [Own It]  -> phone shows digit 1  OK
+    digit 3  Bilal C        S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 1 "Set the line today" [Own It]  -> phone shows digit 1  OK
+    digit 4  Mahnoor A      S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 2 "Take the load off them" [Lift Others]  -> phone shows digit 2  OK
+    code 2-1-1-2  shown on 6/6 Team 12 phones OK
+    Team 7: 3/3 phones show "Team 12 on the way" OK
+    captain Junaid D enters 2112 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Own It (match) | Own It (match) | Lift Others (match)
+    UNLOCKED  Team 7 piece 1/4, board 12/80, Team 12 sent 1/4, next: Team 12 round 2 -> Team 4
+    sync: projector OK | Team 7 phones 3/3 | Team 12 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [12/80] Team 12 -> Team 7 delivered and everything in sync
+
+[13/80] ROUND 1   Team 13  ->  Team 14   (Team 14 captain: Farhan B)
+    digit 1  Adeel A        S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 1 "Back the coach" [Lift Others]  -> phone shows digit 1  OK
+    digit 2  Omar E         S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 3 "Get proper training support" [Ask for Help]  -> phone shows digit 3  OK
+    digit 3  Yasir C        S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Saad C         S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 2 "Understand the root cause first, then solve" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 1-3-1-2  shown on 5/5 Team 13 phones OK
+    Team 14: 3/3 phones show "Team 13 on the way" OK
+    captain Farhan B enters 1312 -> accepted
+    behaviours explained back: Lift Others (match) | Ask for Help (match) | Ask for Help (chose Show Up) | Reflect & Learn (match)
+    UNLOCKED  Team 14 piece 1/4, board 13/80, Team 13 sent 1/4, next: Team 13 round 2 -> Team 12
+    sync: projector OK | Team 14 phones 3/3 | Team 13 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [13/80] Team 13 -> Team 14 delivered and everything in sync
+
+[14/80] ROUND 1   Team 14  ->  Team 18   (Team 18 captain: Kamran E)
+    digit 1  Amna A         S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Asad B         S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 3 "Look at what you missed" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Amna A         S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 3 "Guard the floor yourself" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Asad B         S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 1 "Own it with the customer" [Own It]  -> phone shows digit 1  OK
+    code 2-3-3-1  shown on 3/3 Team 14 phones OK
+    Team 18: 3/3 phones show "Team 14 on the way" OK
+    captain Kamran E enters 2331 -> accepted
+    behaviours explained back: Ask for Help (match) | Reflect & Learn (match) | not explained | not explained
+    UNLOCKED  Team 18 piece 1/4, board 14/80, Team 14 sent 1/4, next: Team 14 round 2 -> Team 7
+    sync: projector OK | Team 18 phones 3/3 | Team 14 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [14/80] Team 14 -> Team 18 delivered and everything in sync
+
+[15/80] ROUND 1   Team 15  ->  Team 13   (Team 13 captain: Noor A)
+    digit 1  Waleed D       S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 2 "Understand the root cause first, then solve" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Fahad A        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Farhan D       S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 3 "Use it as a teaching moment" [Lift Others]  -> phone shows digit 3  OK
+    digit 4  Rehan C        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 3 "Ask why first" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 2-2-3-3  shown on 6/6 Team 15 phones OK
+    Team 13: 5/5 phones show "Team 15 on the way" OK
+    captain Noor A enters 2233 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Reflect & Learn (match) | Lift Others (match) | Reflect & Learn (match)
+    UNLOCKED  Team 13 piece 1/4, board 15/80, Team 15 sent 1/4, next: Team 15 round 2 -> Team 6
+    sync: projector OK | Team 13 phones 5/5 | Team 15 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [15/80] Team 15 -> Team 13 delivered and everything in sync
+
+[16/80] ROUND 1   Team 16  ->  Team 9   (Team 9 captain: Usman C)
+    digit 1  Kamran D       S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 1 "Rebuild their confidence" [Lift Others]  -> phone shows digit 1  OK
+    digit 2  Owais C        S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 1 "Take the floor yourself" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Ahmed C        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 2 "Be there at close" [Show Up]  -> phone shows digit 2  OK
+    digit 4  Ahmed E        S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 2 "Take the load off them" [Lift Others]  -> phone shows digit 2  OK
+    code 1-1-2-2  shown on 6/6 Team 16 phones OK
+    Team 9: 6/6 phones show "Team 16 on the way" OK
+    captain Usman C enters 1122 -> accepted
+    behaviours explained back: Lift Others (match) | Show Up (match) | Show Up (match) | Lift Others (match)
+    UNLOCKED  Team 9 piece 1/4, board 16/80, Team 16 sent 1/4, next: Team 16 round 2 -> Team 20
+    sync: projector OK | Team 9 phones 6/6 | Team 16 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [16/80] Team 16 -> Team 9 delivered and everything in sync
+
+[17/80] ROUND 1   Team 17  ->  Team 5   (Team 5 captain: Hina A)
+    digit 1  Asad D         S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 2 "Find the common cause" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Zain B         S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 1 "Tell them now" [Own It]  -> phone shows digit 1  OK
+    digit 3  Sana A         S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Rizwan A       S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 2 "Pull in support" [Ask for Help]  -> phone shows digit 2  OK
+    code 2-1-2-2  shown on 5/5 Team 17 phones OK
+    Team 5: 3/3 phones show "Team 17 on the way" OK
+    captain Hina A enters 2122 -> accepted
+    behaviours explained back: not explained | not explained | Reflect & Learn (match) | Ask for Help (match)
+    UNLOCKED  Team 5 piece 1/4, board 17/80, Team 17 sent 1/4, next: Team 17 round 2 -> Team 19
+    sync: projector OK | Team 5 phones 3/3 | Team 17 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [17/80] Team 17 -> Team 5 delivered and everything in sync
+
+[18/80] ROUND 1   Team 18  ->  Team 4   (Team 4 captain: Imran D)
+    digit 1  Hassan A       S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 3 "Keep the line moving" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Waleed A       S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 2 "Find the common cause" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Hassan A       S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 1 "Take the floor yourself" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Waleed A       S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 3 "Check it yourself every peak" [Show Up]  -> phone shows digit 3  OK
+    code 3-2-1-3  shown on 3/3 Team 18 phones OK
+    Team 4: 6/6 phones show "Team 18 on the way" OK
+    captain Imran D enters 3213 -> accepted
+    behaviours explained back: not explained | Lift Others (chose Reflect & Learn) | Show Up (match) | Show Up (match)
+    UNLOCKED  Team 4 piece 1/4, board 18/80, Team 18 sent 1/4, next: Team 18 round 2 -> Team 11
+    sync: projector OK | Team 4 phones 6/6 | Team 18 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [18/80] Team 18 -> Team 4 delivered and everything in sync
+
+[19/80] ROUND 1   Team 19  ->  Team 8   (Team 8 captain: Zainab A)
+    digit 1  Shahzaib E     S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Bilal A        S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 1 "Respond and take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 3  Shahzaib E     S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 1 "Model it first" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Bilal A        S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 1 "Tell them now" [Own It]  -> phone shows digit 1  OK
+    code 3-1-1-1  shown on 3/3 Team 19 phones OK
+    Team 8: 5/5 phones show "Team 19 on the way" OK
+    captain Zainab A enters 3111 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Own It (match) | Show Up (match) | Own It (match)
+    UNLOCKED  Team 8 piece 1/4, board 19/80, Team 19 sent 1/4, next: Team 19 round 2 -> Team 9
+    sync: projector OK | Team 8 phones 5/5 | Team 19 phones 3/3 | facilitator OK | feed OK   (3.8s)
+  PASS  [19/80] Team 19 -> Team 8 delivered and everything in sync
+
+[20/80] ROUND 1   Team 20  ->  Team 10   (Team 10 captain: Rizwan B)
+    digit 1  Talha C        S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 3 "Keep the line moving" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Yasir A        S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 2 "Take the load off them" [Lift Others]  -> phone shows digit 2  OK
+    digit 3  Zain D         S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 1 "Take the floor yourself" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Talha C        S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 2 "Check before reacting" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-2-1-2  shown on 4/4 Team 20 phones OK
+    Team 10: 4/4 phones show "Team 20 on the way" OK
+    captain Rizwan B enters 3212 -> accepted
+    behaviours explained back: Show Up (match) | Lift Others (match) | Show Up (match) | Reflect & Learn (match)
+    UNLOCKED  Team 10 piece 1/4, board 20/80, Team 20 sent 1/4, next: Team 20 round 2 -> Team 13
+    sync: projector OK | Team 10 phones 4/4 | Team 20 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [20/80] Team 20 -> Team 10 delivered and everything in sync
+
+[21/80] ROUND 2   Team 1  ->  Team 16   (Team 16 captain: Hira A)
+    digit 1  Haris C        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 1 "Say it was you" [Own It]  -> phone shows digit 1  OK
+    digit 2  Hamza D        S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 1 "Apologise and compensate immediately" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Saad A         S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 2 "Pull in support" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Ali K          S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    code 1-1-2-1  shown on 8/8 Team 1 phones OK
+    Team 16: 6/6 phones show "Team 1 on the way" OK
+    captain Hira A enters 1121 -> accepted
+    behaviours explained back: Own It (match) | not explained | Ask for Help (match) | Own It (match)
+    UNLOCKED  Team 16 piece 2/4, board 21/80, Team 1 sent 2/4, next: Team 1 round 3 -> Team 5
+    sync: projector OK | Team 16 phones 6/6 | Team 1 phones 8/8 | facilitator OK | feed OK   (2.3s)
+  PASS  [21/80] Team 1 -> Team 16 delivered and everything in sync
+
+[22/80] ROUND 2   Team 2  ->  Team 1   (Team 1 captain: Talha D)
+    digit 1  Taha C         S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 3 "Guard the floor yourself" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Ahmed A        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 2 "Check your options first" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Hassan C       S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Rabia A        S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-2-2-2  shown on 6/6 Team 2 phones OK
+    Team 1: 8/8 phones show "Team 2 on the way" OK
+    captain Talha D enters 3222 -> accepted
+    behaviours explained back: Show Up (match) | Lift Others (chose Ask for Help) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 1 piece 2/4, board 22/80, Team 2 sent 2/4, next: Team 2 round 3 -> Team 3
+    sync: projector OK | Team 1 phones 8/8 | Team 2 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [22/80] Team 2 -> Team 1 delivered and everything in sync
+
+[23/80] ROUND 2   Team 3  ->  Team 5   (Team 5 captain: Hina A)
+    digit 1  Salman A       S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 3 "Ask how to handle it" [Ask for Help]  -> phone shows digit 3  OK
+    digit 2  Anum A         S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 1 "Step in beside her" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Arsalan B      S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 3 "Guard the floor yourself" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Usman E        S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 1 "Own it with the customer" [Own It]  -> phone shows digit 1  OK
+    code 3-1-3-1  shown on 5/5 Team 3 phones OK
+    Team 5: 3/3 phones show "Team 3 on the way" OK
+    captain Hina A enters 3131 -> accepted
+    behaviours explained back: Ask for Help (match) | Own It (chose Lift Others) | Show Up (match) | Own It (match)
+    UNLOCKED  Team 5 piece 2/4, board 23/80, Team 3 sent 2/4, next: Team 3 round 3 -> Team 17
+    sync: projector OK | Team 5 phones 3/3 | Team 3 phones 5/5 | facilitator OK | feed OK   (2.0s)
+  PASS  [23/80] Team 3 -> Team 5 delivered and everything in sync
+
+[24/80] ROUND 2   Team 4  ->  Team 3   (Team 3 captain: Usman A)
+    digit 1  Iqra A         S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Shoaib D       S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 1 "Deal with it directly" [Own It]  -> phone shows digit 1  OK
+    digit 3  Omar C         S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 2 "Hand one thing over" [Lift Others]  -> phone shows digit 2  OK
+    digit 4  Omar A         S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    code 2-1-2-3  shown on 6/6 Team 4 phones OK
+    Team 3: 5/5 phones show "Team 4 on the way" OK
+    captain Usman A enters 2123 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Own It (match) | Lift Others (match) | not explained
+    UNLOCKED  Team 3 piece 2/4, board 24/80, Team 4 sent 2/4, next: Team 4 round 3 -> Team 11
+    sync: projector OK | Team 3 phones 5/5 | Team 4 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [24/80] Team 4 -> Team 3 delivered and everything in sync
+
+[25/80] ROUND 2   Team 5  ->  Team 8   (Team 8 captain: Zainab A)
+    digit 1  Shahzaib B     S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Moiz A         S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 3 "Let the packers fix it" [Lift Others]  -> phone shows digit 3  OK
+    digit 3  Shahzaib B     S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Moiz A         S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 3 "Protect service first" [Show Up]  -> phone shows digit 3  OK
+    code 2-3-3-3  shown on 3/3 Team 5 phones OK
+    Team 8: 5/5 phones show "Team 5 on the way" OK
+    captain Zainab A enters 2333 -> accepted
+    behaviours explained back: not explained | Lift Others (match) | Reflect & Learn (match) | Show Up (match)
+    UNLOCKED  Team 8 piece 2/4, board 25/80, Team 5 sent 2/4, next: Team 5 round 3 -> Team 19
+    sync: projector OK | Team 8 phones 5/5 | Team 5 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [25/80] Team 5 -> Team 8 delivered and everything in sync
+
+[26/80] ROUND 2   Team 6  ->  Team 18   (Team 18 captain: Kamran E)
+    digit 1  Taha B         S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Ali K (2)      S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 1 "Own it with the customer" [Own It]  -> phone shows digit 1  OK
+    digit 3  Asad A         S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Taha B         S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 2 "Time every peak yourself" [Show Up]  -> phone shows digit 2  OK
+    code 2-1-2-2  shown on 4/4 Team 6 phones OK
+    Team 18: 3/3 phones show "Team 6 on the way" OK
+    captain Kamran E enters 2122 -> accepted
+    behaviours explained back: Ask for Help (match) | Own It (match) | Own It (chose Reflect & Learn) | Show Up (match)
+    UNLOCKED  Team 18 piece 2/4, board 26/80, Team 6 sent 2/4, next: Team 6 round 3 -> Team 14
+    sync: projector OK | Team 18 phones 3/3 | Team 6 phones 4/4 | facilitator OK | feed OK   (2.0s)
+  PASS  [26/80] Team 6 -> Team 18 delivered and everything in sync
+
+[27/80] ROUND 2   Team 7  ->  Team 2   (Team 2 captain: Omar B)
+    digit 1  Hamza A        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 1 "Set a clear standard" [Own It]  -> phone shows digit 1  OK
+    digit 2  Shahzaib A     S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 1 "Rebuild their confidence" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Hamza A        S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 2 "Own her readiness" [Own It]  -> phone shows digit 2  OK
+    digit 4  Shahzaib A     S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 2 "Understand the root cause first, then solve" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 1-1-2-2  shown on 3/3 Team 7 phones OK
+    Team 2: 6/6 phones show "Team 7 on the way" OK
+    captain Omar B enters 1122 -> accepted
+    behaviours explained back: Own It (match) | not explained | Reflect & Learn (chose Own It) | Show Up (chose Reflect & Learn)
+    UNLOCKED  Team 2 piece 2/4, board 27/80, Team 7 sent 2/4, next: Team 7 round 3 -> Team 4
+    sync: projector OK | Team 2 phones 6/6 | Team 7 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [27/80] Team 7 -> Team 2 delivered and everything in sync
+
+[28/80] ROUND 2   Team 8  ->  Team 15   (Team 15 captain: Owais A)
+    digit 1  Imran A        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 2 "Check your options first" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Shoaib B       S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 2 "Get other views" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Ahmed B        S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 2 "Check before reacting" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Junaid C       S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 1 "Learn from someone who has" [Ask for Help]  -> phone shows digit 1  OK
+    code 2-2-2-1  shown on 5/5 Team 8 phones OK
+    Team 15: 6/6 phones show "Team 8 on the way" OK
+    captain Owais A enters 2221 -> accepted
+    behaviours explained back: Ask for Help (match) | Ask for Help (match) | Reflect & Learn (match) | Reflect & Learn (chose Ask for Help)
+    UNLOCKED  Team 15 piece 2/4, board 28/80, Team 8 sent 2/4, next: Team 8 round 3 -> Team 9
+    sync: projector OK | Team 15 phones 6/6 | Team 8 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [28/80] Team 8 -> Team 15 delivered and everything in sync
+
+[29/80] ROUND 2   Team 9  ->  Team 10   (Team 10 captain: Rizwan B)
+    digit 1  Danish C       S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    digit 2  Faisal A       S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 3 "Help him get there" [Lift Others]  -> phone shows digit 3  OK
+    digit 3  Waleed B       S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Taha D         S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 2 "Trace the 8%" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-3-3-2  shown on 6/6 Team 9 phones OK
+    Team 10: 4/4 phones show "Team 9 on the way" OK
+    captain Rizwan B enters 3332 -> accepted
+    behaviours explained back: Lift Others (chose Own It) | Lift Others (match) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 10 piece 2/4, board 29/80, Team 9 sent 2/4, next: Team 9 round 3 -> Team 20
+    sync: projector OK | Team 10 phones 4/4 | Team 9 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [29/80] Team 9 -> Team 10 delivered and everything in sync
+
+[30/80] ROUND 2   Team 10  ->  Team 14   (Team 14 captain: Farhan B)
+    digit 1  Arsalan C      S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Aiman A        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 3 "Be first in on Sunday" [Show Up]  -> phone shows digit 3  OK
+    digit 3  Danish A       S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Arsalan C      S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    code 1-3-2-3  shown on 4/4 Team 10 phones OK
+    Team 14: 3/3 phones show "Team 10 on the way" OK
+    captain Farhan B enters 1323 -> accepted
+    behaviours explained back: Show Up (match) | Show Up (match) | Reflect & Learn (match) | Lift Others (match)
+    UNLOCKED  Team 14 piece 2/4, board 30/80, Team 10 sent 2/4, next: Team 10 round 3 -> Team 13
+    sync: projector OK | Team 14 phones 3/3 | Team 10 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [30/80] Team 10 -> Team 14 delivered and everything in sync
+
+[31/80] ROUND 2   Team 11  ->  Team 17   (Team 17 captain: Hamza E)
+    digit 1  Waleed E       S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Fatima A       S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 3 "Get proper training support" [Ask for Help]  -> phone shows digit 3  OK
+    digit 3  Fahad D        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 2 "Be there at close" [Show Up]  -> phone shows digit 2  OK
+    digit 4  Taha A         S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 2 "Raise the equipment issue" [Ask for Help]  -> phone shows digit 2  OK
+    code 1-3-2-2  shown on 5/5 Team 11 phones OK
+    Team 17: 5/5 phones show "Team 11 on the way" OK
+    captain Hamza E enters 1322 -> accepted
+    behaviours explained back: Show Up (match) | Ask for Help (match) | not explained | Ask for Help (match)
+    UNLOCKED  Team 17 piece 2/4, board 31/80, Team 11 sent 2/4, next: Team 11 round 3 -> Team 2
+    sync: projector OK | Team 17 phones 5/5 | Team 11 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [31/80] Team 11 -> Team 17 delivered and everything in sync
+
+[32/80] ROUND 2   Team 12  ->  Team 4   (Team 4 captain: Imran D)
+    digit 1  Kamran A       S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 3 "Ask why first" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Bilal C        S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 2 "Raise the equipment issue" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Mahnoor A      S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 1 "Ask for specifics" [Ask for Help]  -> phone shows digit 1  OK
+    digit 4  Junaid B       S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 1 "Respond and take responsibility" [Own It]  -> phone shows digit 1  OK
+    code 3-2-1-1  shown on 6/6 Team 12 phones OK
+    Team 4: 6/6 phones show "Team 12 on the way" OK
+    captain Imran D enters 3211 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Own It (chose Ask for Help) | Lift Others (chose Ask for Help) | Reflect & Learn (chose Own It)
+    UNLOCKED  Team 4 piece 2/4, board 32/80, Team 12 sent 2/4, next: Team 12 round 3 -> Team 18
+    sync: projector OK | Team 4 phones 6/6 | Team 12 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [32/80] Team 12 -> Team 4 delivered and everything in sync
+
+[33/80] ROUND 2   Team 13  ->  Team 12   (Team 12 captain: Adeel C)
+    digit 1  Adeel A        S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 1 "Address it directly and set the standard high" [Own It]  -> phone shows digit 1  OK
+    digit 2  Omar E         S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 2 "Pull in support" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Yasir C        S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Saad C         S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 2 "Run the next rush alongside them" [Show Up]  -> phone shows digit 2  OK
+    code 1-2-3-2  shown on 5/5 Team 13 phones OK
+    Team 12: 6/6 phones show "Team 13 on the way" OK
+    captain Adeel C enters 1232 -> accepted
+    behaviours explained back: Own It (match) | Ask for Help (match) | Lift Others (chose Reflect & Learn) | Show Up (match)
+    UNLOCKED  Team 12 piece 2/4, board 33/80, Team 13 sent 2/4, next: Team 13 round 3 -> Team 6
+    sync: projector OK | Team 12 phones 6/6 | Team 13 phones 5/5 | facilitator OK | feed OK   (2.0s)
+  PASS  [33/80] Team 13 -> Team 12 delivered and everything in sync
+
+[34/80] ROUND 2   Team 14  ->  Team 7   (Team 7 captain: Junaid D)
+    digit 1  Amna A         S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 3 "Ask those closest to it" [Ask for Help]  -> phone shows digit 3  OK
+    digit 2  Asad B         S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Amna A         S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Asad B         S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 2 "Coach after the rush" [Lift Others]  -> phone shows digit 2  OK
+    code 3-1-3-2  shown on 3/3 Team 14 phones OK
+    Team 7: 3/3 phones show "Team 14 on the way" OK
+    captain Junaid D enters 3132 -> accepted
+    behaviours explained back: Ask for Help (match) | Reflect & Learn (chose Show Up) | Reflect & Learn (match) | Lift Others (match)
+    UNLOCKED  Team 7 piece 2/4, board 34/80, Team 14 sent 2/4, next: Team 14 round 3 -> Team 12
+    sync: projector OK | Team 7 phones 3/3 | Team 14 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [34/80] Team 14 -> Team 7 delivered and everything in sync
+
+[35/80] ROUND 2   Team 15  ->  Team 6   (Team 6 captain: Rehan A)
+    digit 1  Fahad A        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Farhan D       S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 1 "Own the miss" [Own It]  -> phone shows digit 1  OK
+    digit 3  Rehan C        S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 1 "Own the score" [Own It]  -> phone shows digit 1  OK
+    digit 4  Hamza B        S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 1 "Back the coach" [Lift Others]  -> phone shows digit 1  OK
+    code 2-1-1-1  shown on 6/6 Team 15 phones OK
+    Team 6: 4/4 phones show "Team 15 on the way" OK
+    captain Rehan A enters 2111 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Own It (match) | Own It (match) | Lift Others (match)
+    UNLOCKED  Team 6 piece 2/4, board 35/80, Team 15 sent 2/4, next: Team 15 round 3 -> Team 10
+    sync: projector OK | Team 6 phones 4/4 | Team 15 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [35/80] Team 15 -> Team 6 delivered and everything in sync
+
+[36/80] ROUND 2   Team 16  ->  Team 20   (Team 20 captain: Maryam A)
+    digit 1  Owais C        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 1 "Check the fix daily" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Ahmed C        S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 1 "Back the coach" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Ahmed E        S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 3 "Protect service first" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Yasir B        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 1-1-3-2  shown on 6/6 Team 16 phones OK
+    Team 20: 4/4 phones show "Team 16 on the way" OK
+    captain Maryam A enters 1132 -> accepted
+    behaviours explained back: Lift Others (chose Show Up) | Lift Others (match) | Show Up (match) | Reflect & Learn (match)
+    UNLOCKED  Team 20 piece 2/4, board 36/80, Team 16 sent 2/4, next: Team 16 round 3 -> Team 8
+    sync: projector OK | Team 20 phones 4/4 | Team 16 phones 6/6 | facilitator OK | feed OK   (2.2s)
+  PASS  [36/80] Team 16 -> Team 20 delivered and everything in sync
+
+[37/80] ROUND 2   Team 17  ->  Team 19   (Team 19 captain: Farhan A)
+    digit 1  Asad D         S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 2 "Bring in the safety team" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Zain B         S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 1 "Respond and take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 3  Sana A         S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Rizwan A       S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    code 2-1-2-1  shown on 5/5 Team 17 phones OK
+    Team 19: 3/3 phones show "Team 17 on the way" OK
+    captain Farhan A enters 2121 -> accepted
+    behaviours explained back: not explained | Own It (match) | not explained | Show Up (match)
+    UNLOCKED  Team 19 piece 2/4, board 37/80, Team 17 sent 2/4, next: Team 17 round 3 -> Team 1
+    sync: projector OK | Team 19 phones 3/3 | Team 17 phones 5/5 | facilitator OK | feed OK   (2.9s)
+  PASS  [37/80] Team 17 -> Team 19 delivered and everything in sync
+
+[38/80] ROUND 2   Team 18  ->  Team 11   (Team 11 captain: Rizwan C)
+    digit 1  Hassan A       S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 2 "Get other views" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Waleed A       S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 3 "Help him get there" [Lift Others]  -> phone shows digit 3  OK
+    digit 3  Hassan A       S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 3 "Ask how to handle it" [Ask for Help]  -> phone shows digit 3  OK
+    digit 4  Waleed A       S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    code 2-3-3-1  shown on 3/3 Team 18 phones OK
+    Team 11: 5/5 phones show "Team 18 on the way" OK
+    captain Rizwan C enters 2331 -> accepted
+    behaviours explained back: Ask for Help (match) | Lift Others (match) | Ask for Help (match) | Own It (match)
+    UNLOCKED  Team 11 piece 2/4, board 38/80, Team 18 sent 2/4, next: Team 18 round 3 -> Team 7
+    sync: projector OK | Team 11 phones 5/5 | Team 18 phones 3/3 | facilitator OK | feed OK   (2.0s)
+  PASS  [38/80] Team 18 -> Team 11 delivered and everything in sync
+
+[39/80] ROUND 2   Team 19  ->  Team 9   (Team 9 captain: Usman C)
+    digit 1  Bilal A        S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 2 "Bring in the safety team" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Shahzaib E     S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 3 "Own the message" [Own It]  -> phone shows digit 3  OK
+    digit 3  Bilal A        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 2 "Check your options first" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Shahzaib E     S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 2 "Get other views" [Ask for Help]  -> phone shows digit 2  OK
+    code 2-3-2-2  shown on 3/3 Team 19 phones OK
+    Team 9: 6/6 phones show "Team 19 on the way" OK
+    captain Usman C enters 2322 -> accepted
+    behaviours explained back: Ask for Help (match) | Own It (match) | Ask for Help (match) | not explained
+    UNLOCKED  Team 9 piece 2/4, board 39/80, Team 19 sent 2/4, next: Team 19 round 3 -> Team 16
+    sync: projector OK | Team 9 phones 6/6 | Team 19 phones 3/3 | facilitator OK | feed OK   (3.0s)
+  PASS  [39/80] Team 19 -> Team 9 delivered and everything in sync
+
+[40/80] ROUND 2   Team 20  ->  Team 13   (Team 13 captain: Noor A)
+    digit 1  Talha C        S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Yasir A        S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 3 "Check it yourself every peak" [Show Up]  -> phone shows digit 3  OK
+    digit 3  Zain D         S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 3 "Stand by the call" [Own It]  -> phone shows digit 3  OK
+    digit 4  Talha C        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 2 "Be there at close" [Show Up]  -> phone shows digit 2  OK
+    code 3-3-3-2  shown on 4/4 Team 20 phones OK
+    Team 13: 5/5 phones show "Team 20 on the way" OK
+    edge: Team 13 is "stuck", the facilitator unlocks this piece from the console
+    UNLOCKED  Team 13 piece 2/4, board 40/80, Team 20 sent 2/4, next: Team 20 round 3 -> Team 15
+    sync: projector OK | Team 13 phones 5/5 | Team 20 phones 4/4 | facilitator OK | feed OK   (1.6s)
+  PASS  [40/80] Team 20 -> Team 13 delivered and everything in sync
+
+[41/80] ROUND 3   Team 1  ->  Team 5   (Team 5 captain: Hina A)
+    digit 1  Haris C        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 2 "Be there at close" [Show Up]  -> phone shows digit 2  OK
+    digit 2  Hamza D        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 3 "Look at what you missed" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Saad A         S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 2 "Borrow stock" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Ali K          S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 3 "Use it as a teaching moment" [Lift Others]  -> phone shows digit 3  OK
+    code 2-3-2-3  shown on 8/8 Team 1 phones OK
+    Team 5: 3/3 phones show "Team 1 on the way" OK
+    captain Hina A enters 2323 -> accepted
+    behaviours explained back: Lift Others (chose Show Up) | Reflect & Learn (match) | Ask for Help (match) | Lift Others (match)
+    UNLOCKED  Team 5 piece 3/4, board 41/80, Team 1 sent 3/4, next: Team 1 round 4 -> Team 7
+    sync: projector OK | Team 5 phones 3/3 | Team 1 phones 8/8 | facilitator OK | feed OK   (1.9s)
+  PASS  [41/80] Team 1 -> Team 5 delivered and everything in sync
+
+[42/80] ROUND 3   Team 2  ->  Team 3   (Team 3 captain: Usman A)
+    digit 1  Taha C         S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 1 "Rebuild their confidence" [Lift Others]  -> phone shows digit 1  OK
+    digit 2  Ahmed A        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 1 "Say it was you" [Own It]  -> phone shows digit 1  OK
+    digit 3  Hassan C       S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 3 "Ask for more hands" [Ask for Help]  -> phone shows digit 3  OK
+    digit 4  Rabia A        S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 3 "Make it the team's mission" [Lift Others]  -> phone shows digit 3  OK
+    code 1-1-3-3  shown on 6/6 Team 2 phones OK
+    Team 3: 5/5 phones show "Team 2 on the way" OK
+    captain Usman A enters 1133 -> accepted
+    behaviours explained back: Lift Others (match) | Lift Others (chose Own It) | Own It (chose Ask for Help) | Ask for Help (chose Lift Others)
+    UNLOCKED  Team 3 piece 3/4, board 42/80, Team 2 sent 3/4, next: Team 2 round 4 -> Team 14
+    sync: projector OK | Team 3 phones 5/5 | Team 2 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [42/80] Team 2 -> Team 3 delivered and everything in sync
+
+[43/80] ROUND 3   Team 3  ->  Team 17   (Team 17 captain: Hamza E)
+    digit 1  Arsalan B      S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Usman E        S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 3 "Find the gap afterwards" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Salman A       S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 3 "Involve your team in the recovery" [Lift Others]  -> phone shows digit 3  OK
+    digit 4  Anum A         S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    code 2-3-3-2  shown on 5/5 Team 3 phones OK
+    Team 17: 5/5 phones show "Team 3 on the way" OK
+    captain Hamza E enters 2332 -> accepted
+    behaviours explained back: Own It (chose Ask for Help) | Reflect & Learn (match) | Lift Others (match) | Ask for Help (match)
+    UNLOCKED  Team 17 piece 3/4, board 43/80, Team 3 sent 3/4, next: Team 3 round 4 -> Team 12
+    sync: projector OK | Team 17 phones 5/5 | Team 3 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [43/80] Team 3 -> Team 17 delivered and everything in sync
+
+[44/80] ROUND 3   Team 4  ->  Team 11   (Team 11 captain: Rizwan C)
+    digit 1  Shoaib D       S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 1 "Respond and take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 2  Omar C         S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 2 "Time every peak yourself" [Show Up]  -> phone shows digit 2  OK
+    digit 3  Omar A         S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 2 "Own her readiness" [Own It]  -> phone shows digit 2  OK
+    digit 4  Late Joiner L  S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 1 "Stop it now" [Show Up]  -> phone shows digit 1  OK
+    code 1-2-2-1  shown on 6/6 Team 4 phones OK
+    Team 11: 5/5 phones show "Team 4 on the way" OK
+    captain Rizwan C enters 1221 -> accepted
+    behaviours explained back: Own It (match) | Show Up (match) | Own It (match) | not explained
+    UNLOCKED  Team 11 piece 3/4, board 44/80, Team 4 sent 3/4, next: Team 4 round 4 -> Team 13
+    sync: projector OK | Team 11 phones 5/5 | Team 4 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [44/80] Team 4 -> Team 11 delivered and everything in sync
+
+[45/80] ROUND 3   Team 5  ->  Team 19   (Team 19 captain: Farhan A)
+    digit 1  Shahzaib B     S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 1 "Say it was you" [Own It]  -> phone shows digit 1  OK
+    digit 2  Moiz A         S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 1 "Model it first" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Shahzaib B     S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 2 "Check if it is a pattern" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Moiz A         S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 3 "Help him get there" [Lift Others]  -> phone shows digit 3  OK
+    code 1-1-2-3  shown on 3/3 Team 5 phones OK
+    Team 19: 3/3 phones show "Team 5 on the way" OK
+    captain Farhan A enters 1123 -> accepted
+    behaviours explained back: Own It (match) | Show Up (match) | Reflect & Learn (match) | not explained
+    UNLOCKED  Team 19 piece 3/4, board 45/80, Team 5 sent 3/4, next: Team 5 round 4 -> Team 4
+    sync: projector OK | Team 19 phones 3/3 | Team 5 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [45/80] Team 5 -> Team 19 delivered and everything in sync
+
+[46/80] ROUND 3   Team 6  ->  Team 14   (Team 14 captain: Farhan B)
+    digit 1  Taha B         S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 1 "Ask for specifics" [Ask for Help]  -> phone shows digit 1  OK
+    digit 2  Ali K (2)      S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 1 "Show him his path here" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Asad A         S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 3 "Be first in on Sunday" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Taha B         S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 1 "Deal with it directly" [Own It]  -> phone shows digit 1  OK
+    code 1-1-3-1  shown on 4/4 Team 6 phones OK
+    Team 14: 3/3 phones show "Team 6 on the way" OK
+    captain Farhan B enters 1131 -> accepted
+    behaviours explained back: Ask for Help (match) | not explained | Show Up (match) | Own It (match)
+    UNLOCKED  Team 14 piece 3/4, board 46/80, Team 6 sent 3/4, next: Team 6 round 4 -> Team 8
+    sync: projector OK | Team 14 phones 3/3 | Team 6 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [46/80] Team 6 -> Team 14 delivered and everything in sync
+
+[47/80] ROUND 3   Team 7  ->  Team 4   (Team 4 captain: Imran D)
+    digit 1  Hamza A        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 1 "Stop it now" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Shahzaib A     S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 1 "Say it before they ask" [Own It]  -> phone shows digit 1  OK
+    digit 3  Hamza A        S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 1 "Ask for specifics" [Ask for Help]  -> phone shows digit 1  OK
+    digit 4  Shahzaib A     S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    code 1-1-1-1  shown on 3/3 Team 7 phones OK
+    Team 4: 6/6 phones show "Team 7 on the way" OK
+    captain Imran D enters 1111 -> accepted
+    behaviours explained back: Show Up (match) | Own It (match) | Ask for Help (match) | Reflect & Learn (chose Own It)
+    UNLOCKED  Team 4 piece 3/4, board 47/80, Team 7 sent 3/4, next: Team 7 round 4 -> Team 10
+    sync: projector OK | Team 4 phones 6/6 | Team 7 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [47/80] Team 7 -> Team 4 delivered and everything in sync
+
+[48/80] ROUND 3   Team 8  ->  Team 9   (Team 9 captain: Usman C)
+    digit 1  Shoaib B       S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 3 "Be first in on Sunday" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Ahmed B        S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 1 "Pair her up" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Junaid C       S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 2 "Learn from the best" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Imran A        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 2 "Coach after the rush" [Lift Others]  -> phone shows digit 2  OK
+    code 3-1-2-2  shown on 5/5 Team 8 phones OK
+    Team 9: 6/6 phones show "Team 8 on the way" OK
+    captain Usman C enters 3122 -> accepted
+    behaviours explained back: not explained | Lift Others (match) | not explained | Lift Others (match)
+    UNLOCKED  Team 9 piece 3/4, board 48/80, Team 8 sent 3/4, next: Team 8 round 4 -> Team 3
+    sync: projector OK | Team 9 phones 6/6 | Team 8 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [48/80] Team 8 -> Team 9 delivered and everything in sync
+
+[49/80] ROUND 3   Team 9  ->  Team 20   (Team 20 captain: Maryam A)
+    digit 1  Faisal A       S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 2  Waleed B       S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 1 "Step in beside her" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Taha D         S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Ayesha A       S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 1-1-2-3  shown on 6/6 Team 9 phones OK
+    Team 20: 4/4 phones show "Team 9 on the way" OK
+    captain Maryam A enters 1123 -> accepted
+    behaviours explained back: Own It (match) | Own It (chose Lift Others) | Lift Others (chose Reflect & Learn) | not explained
+    UNLOCKED  Team 20 piece 3/4, board 49/80, Team 9 sent 3/4, next: Team 9 round 4 -> Team 17
+    sync: projector OK | Team 20 phones 4/4 | Team 9 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [49/80] Team 9 -> Team 20 delivered and everything in sync
+
+[50/80] ROUND 3   Team 10  ->  Team 13   (Team 13 captain: Noor A)
+    digit 1  Danish A       S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Arsalan C      S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 2 "Find the common cause" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Aiman A        S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 2 "Check before reacting" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Danish A       S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-2-2-2  shown on 4/4 Team 10 phones OK
+    Team 13: 5/5 phones show "Team 10 on the way" OK
+    captain Noor A enters 3222 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Show Up (chose Reflect & Learn) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 13 piece 3/4, board 50/80, Team 10 sent 3/4, next: Team 10 round 4 -> Team 19
+    sync: projector OK | Team 13 phones 5/5 | Team 10 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [50/80] Team 10 -> Team 13 delivered and everything in sync
+
+[51/80] ROUND 3   Team 11  ->  Team 2   (Team 2 captain: Omar B)
+    digit 1  Waleed E       S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 3 "Involve your team in the recovery" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Fatima A       S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 1 "Check the fix daily" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Fahad D        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Taha A         S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 3 "Ask how to handle it" [Ask for Help]  -> phone shows digit 3  OK
+    code 3-1-2-3  shown on 5/5 Team 11 phones OK
+    Team 2: 6/6 phones show "Team 11 on the way" OK
+    captain Omar B enters 3123 -> accepted
+    behaviours explained back: Lift Others (match) | Show Up (match) | Ask for Help (chose Reflect & Learn) | Ask for Help (match)
+    UNLOCKED  Team 2 piece 3/4, board 51/80, Team 11 sent 3/4, next: Team 11 round 4 -> Team 6
+    sync: projector OK | Team 2 phones 6/6 | Team 11 phones 5/5 | facilitator OK | feed OK   (2.0s)
+  PASS  [51/80] Team 11 -> Team 2 delivered and everything in sync
+
+[52/80] ROUND 3   Team 12  ->  Team 18   (Team 18 captain: Kamran E)
+    digit 1  Kamran A       S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 3 "Guard the floor yourself" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Bilal C        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 1 "Check the fix daily" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Mahnoor A      S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Junaid B       S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 2 "Build in a second check" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-1-2-2  shown on 6/6 Team 12 phones OK
+    Team 18: 3/3 phones show "Team 12 on the way" OK
+    captain Kamran E enters 3122 -> accepted
+    behaviours explained back: Show Up (match) | Show Up (match) | Ask for Help (match) | Reflect & Learn (match)
+    UNLOCKED  Team 18 piece 3/4, board 52/80, Team 12 sent 3/4, next: Team 12 round 4 -> Team 20
+    sync: projector OK | Team 18 phones 3/3 | Team 12 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [52/80] Team 12 -> Team 18 delivered and everything in sync
+
+[53/80] ROUND 3   Team 13  ->  Team 6   (Team 6 captain: Rehan A)
+    digit 1  Omar E         S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 3 "Protect service first" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Yasir C        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 1 "Show him his path here" [Lift Others]  -> phone shows digit 1  OK
+    digit 3  Saad C         S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 1 "Stop it now" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Adeel A        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 3 "Help him get there" [Lift Others]  -> phone shows digit 3  OK
+    code 3-1-1-3  shown on 5/5 Team 13 phones OK
+    Team 6: 4/4 phones show "Team 13 on the way" OK
+    captain Rehan A enters 3113 -> accepted
+    behaviours explained back: Show Up (match) | Lift Others (match) | Show Up (match) | Lift Others (match)
+    UNLOCKED  Team 6 piece 3/4, board 53/80, Team 13 sent 3/4, next: Team 13 round 4 -> Team 16
+    sync: projector OK | Team 6 phones 4/4 | Team 13 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [53/80] Team 13 -> Team 6 delivered and everything in sync
+
+[54/80] ROUND 3   Team 14  ->  Team 12   (Team 12 captain: Adeel C)
+    digit 1  Amna A         S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 3 "Make it the team's mission" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Asad B         S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 2 "Check before reacting" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Amna A         S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 3 "Check it yourself every peak" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Asad B         S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 2 "Build in a second check" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 3-2-3-2  shown on 3/3 Team 14 phones OK
+    Team 12: 6/6 phones show "Team 14 on the way" OK
+    captain Adeel C enters 3232 -> accepted
+    behaviours explained back: Lift Others (match) | Reflect & Learn (match) | Ask for Help (chose Show Up) | Show Up (chose Reflect & Learn)
+    UNLOCKED  Team 12 piece 3/4, board 54/80, Team 14 sent 3/4, next: Team 14 round 4 -> Team 9
+    sync: projector OK | Team 12 phones 6/6 | Team 14 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [54/80] Team 14 -> Team 12 delivered and everything in sync
+
+[55/80] ROUND 3   Team 15  ->  Team 10   (Team 10 captain: Rizwan B)
+    digit 1  Fahad A        S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 2 "Find the common cause" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Farhan D       S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 1 "Respond and take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 3  Rehan C        S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 2 "Time every peak yourself" [Show Up]  -> phone shows digit 2  OK
+    digit 4  Hamza B        S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 3 "Grow station coaches" [Lift Others]  -> phone shows digit 3  OK
+    code 2-1-2-3  shown on 6/6 Team 15 phones OK
+    Team 10: 4/4 phones show "Team 15 on the way" OK
+    captain Rizwan B enters 2123 -> accepted
+    behaviours explained back: Reflect & Learn (match) | not explained | Show Up (match) | Reflect & Learn (chose Lift Others)
+    UNLOCKED  Team 10 piece 3/4, board 55/80, Team 15 sent 3/4, next: Team 15 round 4 -> Team 5
+    sync: projector OK | Team 10 phones 4/4 | Team 15 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [55/80] Team 15 -> Team 10 delivered and everything in sync
+
+[56/80] ROUND 3   Team 16  ->  Team 8   (Team 8 captain: Zainab A)
+    digit 1  Owais C        S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 1 "Own the score" [Own It]  -> phone shows digit 1  OK
+    digit 2  Ahmed C        S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 3 "Look at what you missed" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Ahmed E        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 3 "Be first in on Sunday" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Yasir B        S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 3 "Involve your team in the recovery" [Lift Others]  -> phone shows digit 3  OK
+    code 1-3-3-3  shown on 6/6 Team 16 phones OK
+    Team 8: 5/5 phones show "Team 16 on the way" OK
+    captain Zainab A enters 1333 -> accepted
+    behaviours explained back: Own It (match) | Reflect & Learn (match) | Show Up (match) | Lift Others (match)
+    UNLOCKED  Team 8 piece 3/4, board 56/80, Team 16 sent 3/4, next: Team 16 round 4 -> Team 2
+    sync: projector OK | Team 8 phones 5/5 | Team 16 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [56/80] Team 16 -> Team 8 delivered and everything in sync
+
+[57/80] ROUND 3   Team 17  ->  Team 1   (Team 1 captain: Talha D)
+    digit 1  Asad D         S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 2 "Build in a second check" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Zain B         S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 1 "Stop it now" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Sana A         S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Rizwan A       S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 2-1-3-2  shown on 5/5 Team 17 phones OK
+    Team 1: 8/8 phones show "Team 17 on the way" OK
+    captain Talha D enters 2132 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Show Up (match) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 1 piece 3/4, board 57/80, Team 17 sent 3/4, next: Team 17 round 4 -> Team 18
+    sync: projector OK | Team 1 phones 7/8 | Team 17 phones 4/5 | facilitator OK | feed OK   (4.3s)
+  PASS  [57/80] Team 17 -> Team 1 delivered and everything in sync
+
+[58/80] ROUND 3   Team 18  ->  Team 7   (Team 7 captain: Junaid D)
+    digit 1  Waleed A       S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Hassan A       S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 1 "Deal with it directly" [Own It]  -> phone shows digit 1  OK
+    digit 3  Waleed A       S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Hassan A       S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 3 "Find the gap afterwards" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 3-1-3-3  shown on 3/3 Team 18 phones OK
+    Team 7: 3/3 phones show "Team 18 on the way" OK
+    captain Junaid D enters 3133 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Reflect & Learn (chose Own It) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 7 piece 3/4, board 58/80, Team 18 sent 3/4, next: Team 18 round 4 -> Team 15
+    sync: projector OK | Team 7 phones 3/3 | Team 18 phones 3/3 | facilitator OK | feed OK   (2.0s)
+  PASS  [58/80] Team 18 -> Team 7 delivered and everything in sync
+
+[59/80] ROUND 3   Team 19  ->  Team 16   (Team 16 captain: Hira A)
+    digit 1  Bilal A        S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 3 "Help him get there" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Shahzaib E     S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 2 "Trace the 8%" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Bilal A        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 2 "Build in a second check" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Shahzaib E     S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 3 "Ask why first" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 3-2-2-3  shown on 3/3 Team 19 phones OK
+    Team 16: 6/6 phones show "Team 19 on the way" OK
+    captain Hira A enters 3223 -> accepted
+    behaviours explained back: Lift Others (match) | Reflect & Learn (match) | Own It (chose Reflect & Learn) | Reflect & Learn (match)
+    UNLOCKED  Team 16 piece 3/4, board 59/80, Team 19 sent 3/4, next: Team 19 round 4 -> Team 11
+    sync: projector OK | Team 16 phones 6/6 | Team 19 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [59/80] Team 19 -> Team 16 delivered and everything in sync
+
+[60/80] ROUND 3   Team 20  ->  Team 15   (Team 15 captain: Owais A)
+    digit 1  Talha C        S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 1 "Learn from someone who has" [Ask for Help]  -> phone shows digit 1  OK
+    digit 2  Yasir A        S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 2 "Run the next rush alongside them" [Show Up]  -> phone shows digit 2  OK
+    digit 3  Zain D         S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Talha C        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 3 "Ask why first" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 1-2-1-3  shown on 4/4 Team 20 phones OK
+    Team 15: 6/6 phones show "Team 20 on the way" OK
+    captain Owais A enters 1213 -> accepted
+    behaviours explained back: Lift Others (chose Ask for Help) | Show Up (match) | Show Up (match) | Reflect & Learn (match)
+    UNLOCKED  Team 15 piece 3/4, board 60/80, Team 20 sent 3/4, next: Team 20 round 4 -> Team 1
+    sync: projector OK | Team 15 phones 6/6 | Team 20 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [60/80] Team 20 -> Team 15 delivered and everything in sync
+
+[61/80] ROUND 4   Team 1  ->  Team 7   (Team 7 captain: Junaid D)
+    digit 1  Shoaib A       S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 1 "Model it first" [Show Up]  -> phone shows digit 1  OK
+    digit 2  Saad B         S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 3  Haris B        S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 2 "Learn from the best" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Haris C        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 3 "Ask why first" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 1-3-2-3  shown on 8/8 Team 1 phones OK
+    Team 7: 3/3 phones show "Team 1 on the way" OK
+    captain Junaid D enters 1323 -> accepted
+    behaviours explained back: Show Up (match) | Reflect & Learn (match) | Show Up (chose Ask for Help) | Reflect & Learn (match)
+    UNLOCKED  Team 7 piece 4/4, board 61/80, Team 1 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 7 phones 3/3 | Team 1 phones 8/8 | facilitator OK | feed OK   (1.9s)
+  PASS  [61/80] Team 1 -> Team 7 delivered and everything in sync
+
+[62/80] ROUND 4   Team 2  ->  Team 14   (Team 14 captain: Farhan B)
+    digit 1  Taha C         S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 1 "Step in beside her" [Lift Others]  -> phone shows digit 1  OK
+    digit 2  Ahmed A        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 1 "Check the fix daily" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Hassan C       S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 1 "Ask for specifics" [Ask for Help]  -> phone shows digit 1  OK
+    digit 4  Rabia A        S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 2 "Coach after the rush" [Lift Others]  -> phone shows digit 2  OK
+    code 1-1-1-2  shown on 6/6 Team 2 phones OK
+    Team 14: 3/3 phones show "Team 2 on the way" OK
+    captain Farhan B enters 1112 -> accepted
+    behaviours explained back: Lift Others (match) | Show Up (match) | Ask for Help (match) | Lift Others (match)
+    UNLOCKED  Team 14 piece 4/4, board 62/80, Team 2 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 14 phones 3/3 | Team 2 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [62/80] Team 2 -> Team 14 delivered and everything in sync
+
+[63/80] ROUND 4   Team 3  ->  Team 12   (Team 12 captain: Adeel C)
+    digit 1  Arsalan B      S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 2 "Check your options first" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Usman E        S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 3 "Protect service first" [Show Up]  -> phone shows digit 3  OK
+    digit 3  Salman A       S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Anum A         S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    code 2-3-3-3  shown on 5/5 Team 3 phones OK
+    Team 12: 6/6 phones show "Team 3 on the way" OK
+    captain Adeel C enters 2333 -> accepted
+    behaviours explained back: Ask for Help (match) | Reflect & Learn (chose Show Up) | Reflect & Learn (match) | Lift Others (match)
+    UNLOCKED  Team 12 piece 4/4, board 63/80, Team 3 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 12 phones 6/6 | Team 3 phones 5/5 | facilitator OK | feed OK   (2.5s)
+  PASS  [63/80] Team 3 -> Team 12 delivered and everything in sync
+
+[64/80] ROUND 4   Team 4  ->  Team 13   (Team 13 captain: Noor A)
+    digit 1  Shoaib D       S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 2 "Take the load off them" [Lift Others]  -> phone shows digit 2  OK
+    digit 2  Omar C         S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 1 "Own the miss" [Own It]  -> phone shows digit 1  OK
+    digit 3  Omar A         S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 1 "Show him his path here" [Lift Others]  -> phone shows digit 1  OK
+    digit 4  Late Joiner L  S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 2 "Run the next rush alongside them" [Show Up]  -> phone shows digit 2  OK
+    code 2-1-1-2  shown on 6/6 Team 4 phones OK
+    Team 13: 5/5 phones show "Team 4 on the way" OK
+    captain Noor A enters 2112 -> accepted
+    behaviours explained back: Lift Others (match) | not explained | Lift Others (match) | Show Up (match)
+    UNLOCKED  Team 13 piece 4/4, board 64/80, Team 4 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 13 phones 5/5 | Team 4 phones 6/6 | facilitator OK | feed OK   (2.0s)
+  PASS  [64/80] Team 4 -> Team 13 delivered and everything in sync
+
+[65/80] ROUND 4   Team 5  ->  Team 4   (Team 4 captain: Imran D)
+    digit 1  Shahzaib B     S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 1 "Own the miss" [Own It]  -> phone shows digit 1  OK
+    digit 2  Moiz A         S08 Quality & Standards            "During a rush you see a crew member skip the fryer t..."
+             chose 2 "Coach after the rush" [Lift Others]  -> phone shows digit 2  OK
+    digit 3  Shahzaib B     S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 2 "Hand one thing over" [Lift Others]  -> phone shows digit 2  OK
+    digit 4  Moiz A         S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 3 "Find the gap afterwards" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 1-2-2-3  shown on 3/3 Team 5 phones OK
+    Team 4: 6/6 phones show "Team 5 on the way" OK
+    captain Imran D enters 1223 -> accepted
+    behaviours explained back: Own It (match) | not explained | Lift Others (match) | Reflect & Learn (match)
+    UNLOCKED  Team 4 piece 4/4, board 65/80, Team 5 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 4 phones 6/6 | Team 5 phones 3/3 | facilitator OK | feed OK   (2.0s)
+  PASS  [65/80] Team 5 -> Team 4 delivered and everything in sync
+
+[66/80] ROUND 4   Team 6  ->  Team 8   (Team 8 captain: Zainab A)
+    digit 1  Ali K (2)      S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 2  Asad A         S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Taha B         S19 Discipline & Accountability    "A crew member has been 10 to 15 minutes late every f..."
+             chose 2 "Understand what's behind it" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Ali K (2)      S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 1 "Own the score" [Own It]  -> phone shows digit 1  OK
+    code 1-2-2-1  shown on 4/4 Team 6 phones OK
+    Team 8: 5/5 phones show "Team 6 on the way" OK
+    captain Zainab A enters 1221 -> accepted
+    behaviours explained back: Reflect & Learn (chose Own It) | Reflect & Learn (match) | Reflect & Learn (match) | Show Up (chose Own It)
+    UNLOCKED  Team 8 piece 4/4, board 66/80, Team 6 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 8 phones 5/5 | Team 6 phones 4/4 | facilitator OK | feed OK   (1.9s)
+  PASS  [66/80] Team 6 -> Team 8 delivered and everything in sync
+
+[67/80] ROUND 4   Team 7  ->  Team 10   (Team 10 captain: Rizwan B)
+    digit 1  Hamza A        S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 3 "Keep the line moving" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Shahzaib A     S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 1 "Tell them now" [Own It]  -> phone shows digit 1  OK
+    digit 3  Hamza A        S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 1 "Be on the station" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Shahzaib A     S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 3 "Ask how to handle it" [Ask for Help]  -> phone shows digit 3  OK
+    code 3-1-1-3  shown on 3/3 Team 7 phones OK
+    Team 10: 4/4 phones show "Team 7 on the way" OK
+    captain Rizwan B enters 3113 -> accepted
+    behaviours explained back: Show Up (match) | Own It (match) | Show Up (match) | Ask for Help (match)
+    UNLOCKED  Team 10 piece 4/4, board 67/80, Team 7 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 10 phones 4/4 | Team 7 phones 3/3 | facilitator OK | feed OK   (2.0s)
+  PASS  [67/80] Team 7 -> Team 10 delivered and everything in sync
+
+[68/80] ROUND 4   Team 8  ->  Team 3   (Team 3 captain: Usman A)
+    digit 1  Shoaib B       S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Ahmed B        S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 3 "Ask for more hands" [Ask for Help]  -> phone shows digit 3  OK
+    digit 3  Junaid C       S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 1 "Take the floor yourself" [Show Up]  -> phone shows digit 1  OK
+    digit 4  Imran A        S01 Customer Service & Recovery    "A regular customer is upset. Their last three orders..."
+             chose 1 "Apologise and compensate immediately" [Show Up]  -> phone shows digit 1  OK
+    code 2-3-1-1  shown on 5/5 Team 8 phones OK
+    Team 3: 5/5 phones show "Team 8 on the way" OK
+    captain Usman A enters 2311 -> accepted
+    behaviours explained back: Ask for Help (match) | not explained | Reflect & Learn (chose Show Up) | Show Up (match)
+    UNLOCKED  Team 3 piece 4/4, board 68/80, Team 8 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 3 phones 5/5 | Team 8 phones 5/5 | facilitator OK | feed OK   (2.4s)
+  PASS  [68/80] Team 8 -> Team 3 delivered and everything in sync
+
+[69/80] ROUND 4   Team 9  ->  Team 17   (Team 17 captain: Hamza E)
+    digit 1  Faisal A       S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 3 "Grow station coaches" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Waleed B       S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Taha D         S05 Customer Service & Recovery    "An online review says your staff were rude and the f..."
+             chose 3 "Ask how to handle it" [Ask for Help]  -> phone shows digit 3  OK
+    digit 4  Ayesha A       S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 1 "Show him his path here" [Lift Others]  -> phone shows digit 1  OK
+    code 3-2-3-1  shown on 6/6 Team 9 phones OK
+    Team 17: 5/5 phones show "Team 9 on the way" OK
+    captain Hamza E enters 3231 -> accepted
+    behaviours explained back: Lift Others (match) | Reflect & Learn (match) | Ask for Help (match) | Lift Others (match)
+    UNLOCKED  Team 17 piece 4/4, board 69/80, Team 9 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 17 phones 5/5 | Team 9 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [69/80] Team 9 -> Team 17 delivered and everything in sync
+
+[70/80] ROUND 4   Team 10  ->  Team 19   (Team 19 captain: Farhan A)
+    digit 1  Danish A       S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 3 "Ask for more hands" [Ask for Help]  -> phone shows digit 3  OK
+    digit 2  Arsalan C      S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 2 "Pull in support" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Aiman A        S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 3 "Look at why you do it" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Danish A       S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 3-2-3-3  shown on 4/4 Team 10 phones OK
+    Team 19: 3/3 phones show "Team 10 on the way" OK
+    captain Farhan A enters 3233 -> accepted
+    behaviours explained back: Ask for Help (match) | Ask for Help (match) | Reflect & Learn (match) | Reflect & Learn (match)
+    UNLOCKED  Team 19 piece 4/4, board 70/80, Team 10 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 19 phones 3/3 | Team 10 phones 4/4 | facilitator OK | feed OK   (2.1s)
+  PASS  [70/80] Team 10 -> Team 19 delivered and everything in sync
+
+[71/80] ROUND 4   Team 11  ->  Team 6   (Team 6 captain: Rehan A)
+    digit 1  Fatima A       S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 2  Fahad D        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 2 "Build in a second check" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Taha A         S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 3 "Keep the line moving" [Show Up]  -> phone shows digit 3  OK
+    digit 4  Waleed E       S15 People Management & Developmen "You can recommend one crew member for the shift lead..."
+             chose 2 "Get other views" [Ask for Help]  -> phone shows digit 2  OK
+    code 3-2-3-2  shown on 5/5 Team 11 phones OK
+    Team 6: 4/4 phones show "Team 11 on the way" OK
+    captain Rehan A enters 3232 -> accepted
+    behaviours explained back: Show Up (chose Reflect & Learn) | Reflect & Learn (match) | Show Up (match) | Ask for Help (match)
+    UNLOCKED  Team 6 piece 4/4, board 71/80, Team 11 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 6 phones 4/4 | Team 11 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [71/80] Team 11 -> Team 6 delivered and everything in sync
+
+[72/80] ROUND 4   Team 12  ->  Team 20   (Team 20 captain: Maryam A)
+    digit 1  Mahnoor A      S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 3 "Reset the rule for everyone" [Show Up]  -> phone shows digit 3  OK
+    digit 2  Junaid B       S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 3 "Let the packers fix it" [Lift Others]  -> phone shows digit 3  OK
+    digit 3  Saad D         S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 1 "Pair her up" [Lift Others]  -> phone shows digit 1  OK
+    digit 4  Kamran A       S21 Discipline & Accountability    "You promised the regional manager a 15-minute averag..."
+             chose 3 "Find the lost minutes" [Reflect & Learn]  -> phone shows digit 3  OK
+    code 3-3-1-3  shown on 6/6 Team 12 phones OK
+    Team 20: 4/4 phones show "Team 12 on the way" OK
+    captain Maryam A enters 3313 -> accepted
+    behaviours explained back: Show Up (match) | Lift Others (match) | Lift Others (match) | Reflect & Learn (match)
+    UNLOCKED  Team 20 piece 4/4, board 72/80, Team 12 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 20 phones 4/4 | Team 12 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [72/80] Team 12 -> Team 20 delivered and everything in sync
+
+[73/80] ROUND 4   Team 13  ->  Team 16   (Team 16 captain: Hira A)
+    digit 1  Omar E         S17 Cleanliness & Safety           "A crew member slips on a wet kitchen floor. She isn'..."
+             chose 1 "Take responsibility" [Own It]  -> phone shows digit 1  OK
+    digit 2  Yasir C        S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 3 "Let the packers fix it" [Lift Others]  -> phone shows digit 3  OK
+    digit 3  Saad C         S07 Quality & Standards            "Your mystery shopper score dropped from 92 to 78. Th..."
+             chose 2 "Raise the equipment issue" [Ask for Help]  -> phone shows digit 2  OK
+    digit 4  Adeel A        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 1 "Say it was you" [Own It]  -> phone shows digit 1  OK
+    code 1-3-2-1  shown on 5/5 Team 13 phones OK
+    Team 16: 6/6 phones show "Team 13 on the way" OK
+    captain Hira A enters 1321 -> accepted
+    behaviours explained back: Own It (match) | Lift Others (match) | Ask for Help (match) | Show Up (chose Own It)
+    UNLOCKED  Team 16 piece 4/4, board 73/80, Team 13 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 16 phones 6/6 | Team 13 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [73/80] Team 13 -> Team 16 delivered and everything in sync
+
+[74/80] ROUND 4   Team 14  ->  Team 9   (Team 9 captain: Usman C)
+    digit 1  Amna A         S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 2 "Own her readiness" [Own It]  -> phone shows digit 2  OK
+    digit 2  Asad B         S03 Customer Service & Recovery    "A family's birthday order of four buckets was promis..."
+             chose 2 "Borrow stock" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Amna A         S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Asad B         S02 Customer Service & Recovery    "It's 8:30 pm on a Friday. Delivery orders are runnin..."
+             chose 2 "Pull in support" [Ask for Help]  -> phone shows digit 2  OK
+    code 2-2-2-2  shown on 3/3 Team 14 phones OK
+    Team 9: 6/6 phones show "Team 14 on the way" OK
+    captain Usman C enters 2222 -> accepted
+    behaviours explained back: Own It (match) | Lift Others (chose Ask for Help) | Reflect & Learn (match) | Lift Others (chose Ask for Help)
+    UNLOCKED  Team 9 piece 4/4, board 74/80, Team 14 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 9 phones 6/6 | Team 14 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [74/80] Team 14 -> Team 9 delivered and everything in sync
+
+[75/80] ROUND 4   Team 15  ->  Team 5   (Team 5 captain: Hina A)
+    digit 1  Fahad A        S24 Self-Reflection & Learning     "You gave the wrong instruction on a stock order and ..."
+             chose 1 "Say it was you" [Own It]  -> phone shows digit 1  OK
+    digit 2  Farhan D       S14 People Management & Developmen "Two crew members on the same shift keep clashing and..."
+             chose 2 "Hear both sides first" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Rehan C        S11 People Management & Developmen "Your shift lead is losing confidence after a bad ser..."
+             chose 3 "Learn from it together" [Reflect & Learn]  -> phone shows digit 3  OK
+    digit 4  Hamza B        S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 1 "Step in beside her" [Lift Others]  -> phone shows digit 1  OK
+    code 1-2-3-1  shown on 6/6 Team 15 phones OK
+    Team 5: 3/3 phones show "Team 15 on the way" OK
+    captain Hina A enters 1231 -> accepted
+    behaviours explained back: Own It (match) | Reflect & Learn (match) | Reflect & Learn (match) | Lift Others (match)
+    UNLOCKED  Team 5 piece 4/4, board 75/80, Team 15 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 5 phones 3/3 | Team 15 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [75/80] Team 15 -> Team 5 delivered and everything in sync
+
+[76/80] ROUND 4   Team 16  ->  Team 2   (Team 2 captain: Omar B)
+    digit 1  Ahmed C        S25 Self-Reflection & Learning     "Your area manager tells you that you take over tasks..."
+             chose 1 "Ask for specifics" [Ask for Help]  -> phone shows digit 1  OK
+    digit 2  Ahmed E        S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 2 "Check if it is a pattern" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Yasir B        S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 2 "Trace the 8%" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Kamran D       S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    code 1-2-2-2  shown on 6/6 Team 16 phones OK
+    Team 2: 6/6 phones show "Team 16 on the way" OK
+    captain Omar B enters 1222 -> accepted
+    behaviours explained back: Ask for Help (match) | Reflect & Learn (match) | Reflect & Learn (match) | Reflect & Learn (chose Ask for Help)
+    UNLOCKED  Team 2 piece 4/4, board 76/80, Team 16 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 2 phones 6/6 | Team 16 phones 6/6 | facilitator OK | feed OK   (1.9s)
+  PASS  [76/80] Team 16 -> Team 2 delivered and everything in sync
+
+[77/80] ROUND 4   Team 17  ->  Team 18   (Team 18 captain: Kamran E)
+    digit 1  Zain B         S04 Customer Service & Recovery    "A cashier gave a customer the wrong change and the c..."
+             chose 2 "Check if it is a pattern" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Sana A         S13 People Management & Developmen "Your best crew member tells you he's been offered a ..."
+             chose 2 "Check your options first" [Ask for Help]  -> phone shows digit 2  OK
+    digit 3  Rizwan A       S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 3 "Make it the team's mission" [Lift Others]  -> phone shows digit 3  OK
+    digit 4  Asad D         S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 3 "Reset the rule for everyone" [Show Up]  -> phone shows digit 3  OK
+    code 2-2-3-3  shown on 5/5 Team 17 phones OK
+    Team 18: 3/3 phones show "Team 17 on the way" OK
+    captain Kamran E enters 2233 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Ask for Help (match) | Own It (chose Lift Others) | Show Up (match)
+    UNLOCKED  Team 18 piece 4/4, board 77/80, Team 17 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 18 phones 3/3 | Team 17 phones 5/5 | facilitator OK | feed OK   (1.9s)
+  PASS  [77/80] Team 17 -> Team 18 delivered and everything in sync
+
+[78/80] ROUND 4   Team 18  ->  Team 15   (Team 15 captain: Owais A)
+    digit 1  Waleed A       S23 Self-Reflection & Learning     "You've never managed a food cost crisis before. Your..."
+             chose 2 "Trace the 8%" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 2  Hassan A       S18 Cleanliness & Safety           "During the Ramzan iftar rush, your team is cutting c..."
+             chose 1 "Model it first" [Show Up]  -> phone shows digit 1  OK
+    digit 3  Waleed A       S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    digit 4  Hassan A       S09 Quality & Standards            "Head office launches a new burger with a strict asse..."
+             chose 3 "Grow station coaches" [Lift Others]  -> phone shows digit 3  OK
+    code 2-1-3-3  shown on 3/3 Team 18 phones OK
+    Team 15: 6/6 phones show "Team 18 on the way" OK
+    captain Owais A enters 2133 -> accepted
+    behaviours explained back: Reflect & Learn (match) | Show Up (match) | Lift Others (match) | Lift Others (match)
+    UNLOCKED  Team 15 piece 4/4, board 78/80, Team 18 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 15 phones 6/6 | Team 18 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [78/80] Team 18 -> Team 15 delivered and everything in sync
+
+[79/80] ROUND 4   Team 19  ->  Team 11   (Team 11 captain: Rizwan C)
+    digit 1  Bilal A        S16 Cleanliness & Safety           "Your branch missed the cleanliness standard last wee..."
+             chose 3 "Make them champions" [Lift Others]  -> phone shows digit 3  OK
+    digit 2  Shahzaib E     S10 Quality & Standards            "A delivery customer sends a photo of a crushed burge..."
+             chose 2 "Find the common cause" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 3  Bilal A        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    digit 4  Shahzaib E     S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 2 "Find out what's blocking them" [Ask for Help]  -> phone shows digit 2  OK
+    code 3-2-2-2  shown on 3/3 Team 19 phones OK
+    Team 11: 5/5 phones show "Team 19 on the way" OK
+    captain Rizwan C enters 3222 -> accepted
+    behaviours explained back: Lift Others (match) | Reflect & Learn (match) | Reflect & Learn (match) | not explained
+    UNLOCKED  Team 11 piece 4/4, board 79/80, Team 19 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 11 phones 5/5 | Team 19 phones 3/3 | facilitator OK | feed OK   (1.9s)
+  PASS  [79/80] Team 19 -> Team 11 delivered and everything in sync
+
+[80/80] ROUND 4   Team 20  ->  Team 1   (Team 1 captain: Talha D)
+    digit 1  Talha C        S20 Discipline & Accountability    "You find out a shift lead has been giving free meals..."
+             chose 2 "Get it right with HR" [Ask for Help]  -> phone shows digit 2  OK
+    digit 2  Yasir A        S06 Quality & Standards            "On a walk-through you notice the evening shift's fri..."
+             chose 1 "Address it directly and set the standard high" [Own It]  -> phone shows digit 1  OK
+    digit 3  Zain D         S12 People Management & Developmen "A new crew member is slow on the till and customers ..."
+             chose 3 "Get proper training support" [Ask for Help]  -> phone shows digit 3  OK
+    digit 4  Talha C        S22 Self-Reflection & Learning     "You've had three customer complaints about the same ..."
+             chose 2 "Dig into all three" [Reflect & Learn]  -> phone shows digit 2  OK
+    code 2-1-3-2  shown on 4/4 Team 20 phones OK
+    Team 1: 8/8 phones show "Team 20 on the way" OK
+    captain Talha D enters 2132 -> accepted
+    behaviours explained back: Ask for Help (match) | Own It (match) | Ask for Help (match) | Reflect & Learn (match)
+    UNLOCKED  Team 1 piece 4/4, board 80/80, Team 20 sent 4/4, all 4 codes delivered
+    sync: projector OK | Team 1 phones 8/8 | Team 20 phones 4/4 | facilitator OK | feed OK   (2.0s)
+  PASS  [80/80] Team 20 -> Team 1 delivered and everything in sync
+
+==============================================================================
+  PART 7  FINAL CHECKS
+==============================================================================
+  PASS  Board complete: 80 of 80 unlocked  (80/80, complete)
+  PASS  Every phone shows the puzzle as complete
+
+  Who sent to whom:
+  Team  1  sent to 19, 16, 5, 7     received from 3, 2, 17, 20
+  Team  2  sent to 17, 1, 3, 14     received from 4, 7, 11, 16
+  Team  3  sent to 1, 5, 17, 12     received from 11, 4, 2, 8
+  Team  4  sent to 2, 3, 11, 13     received from 18, 12, 7, 5
+  Team  5  sent to 16, 8, 19, 4     received from 17, 3, 1, 15
+  Team  6  sent to 12, 18, 14, 8    received from 10, 15, 13, 11
+  Team  7  sent to 11, 2, 4, 10     received from 12, 14, 18, 1
+  Team  8  sent to 20, 15, 9, 3     received from 19, 5, 16, 6
+  Team  9  sent to 15, 10, 20, 17   received from 16, 19, 8, 14
+  Team 10  sent to 6, 14, 13, 19    received from 20, 9, 15, 7
+  Team 11  sent to 3, 17, 2, 6      received from 7, 18, 4, 19
+  Team 12  sent to 7, 4, 18, 20     received from 6, 13, 14, 3
+  Team 13  sent to 14, 12, 6, 16    received from 15, 20, 10, 4
+  Team 14  sent to 18, 7, 12, 9     received from 13, 10, 6, 2
+  Team 15  sent to 13, 6, 10, 5     received from 9, 8, 20, 18
+  Team 16  sent to 9, 20, 8, 2      received from 5, 1, 19, 13
+  Team 17  sent to 5, 19, 1, 18     received from 2, 11, 3, 9
+  Team 18  sent to 4, 11, 7, 15     received from 14, 6, 12, 17
+  Team 19  sent to 8, 9, 16, 11     received from 1, 17, 5, 10
+  Team 20  sent to 10, 13, 15, 1    received from 8, 16, 9, 12
+  PASS  No team was ever paired with itself
+  PASS  No pair repeated
+  PASS  No straight swaps (A sends to B and B sends to A)
+  PASS  Each team sent to 4 different teams and received from 4 different teams
+  PASS  Pairings are shuffled, not Team N to Team N+1  (6 of 80 happen to be N to N+1)
+
+  Scenarios and who answered, per team:
+  Team  1  16 scenarios, no repeats, answered by 7 different people  [S07 S20 S15 S21 S24 S01 S02 S17 S16 S13 S03 S06 S18 S11 S09 S08]
+  Team  2  16 scenarios, no repeats, answered by 5 different people  [S15 S02 S21 S09 S17 S13 S19 S14 S11 S24 S18 S23 S04 S22 S25 S08]
+  Team  3  16 scenarios, no repeats, answered by 4 different people  [S07 S22 S19 S02 S05 S04 S17 S10 S20 S03 S01 S06 S13 S14 S25 S16]
+  Team  4  16 scenarios, no repeats, answered by 5 different people  [S09 S03 S01 S23 S19 S20 S25 S02 S05 S21 S12 S08 S18 S16 S13 S11]
+  Team  5  16 scenarios, no repeats, answered by 3 different people  [S07 S15 S13 S09 S22 S10 S11 S14 S24 S18 S04 S19 S16 S08 S25 S03]
+  Team  6  16 scenarios, no repeats, answered by 4 different people  [S16 S04 S23 S11 S06 S10 S22 S21 S25 S13 S24 S20 S17 S14 S19 S07]
+  Team  7  16 scenarios, no repeats, answered by 3 different people  [S20 S22 S10 S02 S19 S11 S12 S01 S08 S21 S25 S17 S04 S03 S09 S05]
+  Team  8  16 scenarios, no repeats, answered by 4 different people  [S06 S25 S16 S17 S13 S15 S05 S23 S24 S12 S09 S08 S20 S18 S02 S01]
+  Team  9  16 scenarios, no repeats, answered by 5 different people  [S01 S12 S11 S20 S02 S19 S25 S23 S17 S04 S14 S21 S09 S22 S05 S13]
+  Team 10  16 scenarios, no repeats, answered by 3 different people  [S01 S23 S15 S03 S09 S24 S14 S16 S21 S10 S05 S19 S18 S02 S25 S11]
+  Team 11  16 scenarios, no repeats, answered by 4 different people  [S25 S20 S02 S17 S09 S12 S16 S07 S01 S22 S19 S05 S21 S24 S04 S15]
+  Team 12  16 scenarios, no repeats, answered by 5 different people  [S23 S03 S14 S18 S08 S07 S25 S05 S17 S22 S06 S24 S20 S10 S12 S21]
+  Team 13  16 scenarios, no repeats, answered by 4 different people  [S15 S12 S09 S01 S06 S02 S25 S11 S14 S13 S08 S19 S17 S10 S07 S24]
+  Team 14  16 scenarios, no repeats, answered by 2 different people  [S06 S13 S17 S10 S22 S09 S21 S08 S23 S05 S07 S24 S12 S03 S14 S02]
+  Team 15  16 scenarios, no repeats, answered by 5 different people  [S01 S22 S06 S08 S19 S16 S07 S15 S10 S05 S21 S09 S24 S14 S11 S04]
+  Team 16  16 scenarios, no repeats, answered by 5 different people  [S11 S02 S16 S18 S22 S15 S14 S19 S07 S13 S24 S01 S25 S04 S23 S06]
+  Team 17  16 scenarios, no repeats, answered by 4 different people  [S10 S03 S22 S02 S17 S05 S19 S09 S24 S08 S21 S14 S04 S13 S23 S20]
+  Team 18  16 scenarios, no repeats, answered by 2 different people  [S04 S10 S02 S07 S15 S19 S05 S17 S21 S20 S11 S03 S23 S18 S16 S09]
+  Team 19  16 scenarios, no repeats, answered by 2 different people  [S21 S05 S18 S03 S17 S02 S13 S15 S19 S23 S24 S08 S16 S10 S22 S06]
+  Team 20  16 scenarios, no repeats, answered by 3 different people  [S04 S18 S02 S05 S25 S07 S15 S16 S23 S11 S09 S08 S20 S06 S12 S22]
+  PASS  No team saw the same scenario twice
+  FAIL  Answering was rotated (each team had at least 8 different answerers)
+
+  Behaviour stats  (test count vs server count)
+  Behaviour         Chosen          Heard back      Explained as
+  Own It            55 vs 55        37 vs 37        46 vs 46
+  Show Up           64 vs 64        49 vs 49        58 vs 58
+  Ask for Help      62 vs 62        45 vs 45        51 vs 51
+  Lift Others       56 vs 56        45 vs 45        58 vs 58
+  Reflect & Learn   83 vs 83        65 vs 65        77 vs 77
+  Not explained: 26 vs 26
+  Key: Chosen = answers showing that behaviour. Heard back = receiving captain tapped the same behaviour. Explained as = times the captain tapped it at all.
+  PASS  Server stats match exactly what was played  (320 answers)
+  PASS  Results are showing on the projector
+
+==============================================================================
+  SUMMARY
+==============================================================================
+  453 of 463 checks passed
+  Failed:
+   - Projector join counter shows the same number (projector shows 27)
+   - Quiz opens
+   - "Noor A" answers Q1 twice -> only the first answer counts
+   - Total answers stored = 1179 (0)
+   - 195 finished, 3 stopped halfway, 2 answered nothing (facilitator shows null submitted)
+   - Every phone receives its team
+   - Every phone shows the same team the server has (197/200 phones match)
+   - Every team member's phone switched to the puzzle (96/200)
+   - Round 1: 4 different answerers per team, all from that team, captain not answering
+   - Answering was rotated (each team had at least 8 different answerers)
+
+  Full log saved to full-event-test-log.txt
+  The server still holds this test session. Press "Reset entire session" on the facilitator screen before the event.
