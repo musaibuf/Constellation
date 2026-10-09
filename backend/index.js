@@ -335,13 +335,16 @@ function startPuzzle() {
     puzzle.captains[num] = pickCaptain(num);
   });
 
+  // Ids are unique per game, so after a restart no phone can mistake a new
+  // delivery for one from the previous game (e.g. a choice still highlighted).
+  const gameTag = Date.now().toString(36);
   let seq = 0;
   for (let r = 0; r < ROUNDS; r++) {
     for (let i = 0; i < n; i++) {
       const from = ring[i];
       const to = ring[(i + shifts[r]) % n];
       puzzle.deliveries.push({
-        id: `d${++seq}`,
+        id: `${gameTag}-d${++seq}`,
         round: r + 1,
         from, to,
         quarter: puzzle.pieces[to] ? puzzle.pieces[to].order[r] : r,
