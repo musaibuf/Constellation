@@ -263,34 +263,46 @@ function drawScenarios(n, count) {
   return out;
 }
 
-// Rotates answering duty through the team so different people answer each
-// round. The captain is left out when the team is big enough (5+), because
-// the captain is busy receiving. Prefers people who are online right now.
+// How many answer slots each member of team n has been given so far.
+function turnsTaken(n) {
+  const counts = {};
+  puzzle.deliveries.forEach(d => {
+    if (d.from !== n) return;
+    d.answerers.forEach(a => { if (a) counts[a] = (counts[a] || 0) + 1; });
+  });
+  return counts;
+}
+
+// Fair turns: nobody answers a second time until every teammate has had a
+// first turn. The captain is busy receiving codes, so in teams of 5 or more
+// they go last in each lap (after everyone else), but they still get a turn.
+// People online right now are preferred, so a locked phone is not picked;
+// they come first in the next round instead.
 function pickAnswerers(n, count) {
   const members = teamMembers(n);
   if (members.length === 0) return Array(count).fill(null);
   const cap = puzzle.captains[n];
-  const pool = members.length >= 5 ? members.filter(id => id !== cap) : members.slice();
   const rot = puzzle.rotation[n];
-  rot.order = rot.order.filter(id => pool.includes(id));
-  shuffle(pool.filter(id => !rot.order.includes(id))).forEach(id => rot.order.push(id));
-  const ordered = rot.order.map((_, i) => rot.order[(rot.idx + i) % rot.order.length]);
-  const online = ordered.filter(isOnline);
-  const base = online.length ? online : ordered;
+  rot.order = rot.order.filter(id => members.includes(id));
+  shuffle(members.filter(id => !rot.order.includes(id))).forEach(id => rot.order.push(id));
+  const taken = turnsTaken(n);
+  const weight = (id) => (taken[id] || 0) + (id === cap && members.length >= 5 ? 0.5 : 0);
+  const rank = (list) => list.slice().sort((x, y) => (weight(x) - weight(y)) || (rot.order.indexOf(x) - rot.order.indexOf(y)));
+  const online = rank(members.filter(isOnline));
+  const base = online.length ? online : rank(members);
   const out = [];
   for (let j = 0; j < count; j++) out.push(base[j % base.length]);
-  const used = new Set(out);
-  // Advance the rotation past everyone who just got picked.
-  let advance = 0;
-  while (advance < rot.order.length && used.has(rot.order[(rot.idx + advance) % rot.order.length])) advance++;
-  rot.idx = (rot.idx + Math.max(1, advance)) % rot.order.length;
   return out;
 }
 
 function pickCaptain(n, avoid) {
   const members = teamMembers(n);
   if (members.length === 0) return null;
-  const online = members.filter(id => isOnline(id) && id !== avoid);
+  // Mid-game, skip people who still have a question to answer this round.
+  const answering = new Set();
+  if (puzzle && puzzle.deliveries) puzzle.deliveries.forEach(d => { if (d.from === n && d.status === 'answering') d.answerers.forEach((a, k) => { if (d.answers[k] === null) answering.add(a); }); });
+  const freeMembers = members.filter(id => !answering.has(id));
+  const online = (freeMembers.length ? freeMembers : members).filter(id => isOnline(id) && id !== avoid);
   const pool = online.length ? online : members.filter(id => id !== avoid);
   const list = pool.length ? pool : members;
   return list[Math.floor(Math.random() * list.length)];
@@ -611,7 +623,13 @@ function repairPuzzleRoles({ onlyMembership } = {}) {
     } else if (!onlyMembership && !isOnline(cap) && offlineFor(cap) > CAPTAIN_GRACE_MS) {
       const alt = members.filter(id => id !== cap && isOnline(id));
       if (alt.length) {
-        puzzle.captains[n] = alt[Math.floor(Math.random() * alt.length)];
+        // Prefer someone who is not answering this round, so nobody has to
+        // answer a scenario and receive codes at the same moment.
+        const answering = new Set();
+        puzzle.deliveries.forEach(d => { if (d.from === n && d.status === 'answering') d.answerers.forEach((a, k) => { if (d.answers[k] === null) answering.add(a); }); });
+        const free = alt.filter(id => !answering.has(id));
+        const pool = free.length ? free : alt;
+        puzzle.captains[n] = pool[Math.floor(Math.random() * pool.length)];
         changed.add(n);
       }
     }
@@ -628,8 +646,11 @@ function repairPuzzleRoles({ onlyMembership } = {}) {
       if (!gone && !away) return;
       const pending = new Set(d.answerers.filter((x, k) => d.answers[k] === null && k !== j));
       const cap = puzzle.captains[d.from];
+      const taken = turnsTaken(d.from);
+      // Online first, then someone not already answering this round, then
+      // whoever has had the fewest turns (captain last).
       const ranked = shuffle(members).sort((x, y) => {
-        const score = (id) => (isOnline(id) ? 0 : 4) + (pending.has(id) ? 2 : 0) + (id === cap && members.length >= 5 ? 1 : 0);
+        const score = (id) => (isOnline(id) ? 0 : 1000) + (pending.has(id) ? 100 : 0) + (taken[id] || 0) * 2 + (id === cap && members.length >= 5 ? 1 : 0);
         return score(x) - score(y);
       });
       const pick = ranked[0];
