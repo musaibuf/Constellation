@@ -48,7 +48,8 @@ let session = {
 let participants = {};   // id -> { id, name, gender, joinedAt, teamId }
 let answers = [];        // { participantId, questionIndex, optionIndex, answeredAt }
 let teams = [];          // { id, number, name, colour, memberIds }
-let puzzle = null;       // see ACCOUNTABILITY PUZZLE below
+let puzzle = null;       // see CODE UP below
+// (ownit, the third activity, is declared with its section below)
 
 function resetSession() {
   session = { activity: 'constellation', state: 'idle' };
@@ -56,6 +57,7 @@ function resetSession() {
   answers = [];
   teams = [];
   puzzle = null;
+  ownit = null;
 }
 
 function nameExists(name) {
@@ -185,12 +187,13 @@ function markOffline(socket) {
 function isOnline(pid) { return !!onlineSockets[pid]; }
 function offlineFor(pid) {
   if (isOnline(pid)) return 0;
-  const since = offlineSince[pid] || (puzzle ? puzzle.startedAt : Date.now());
+  const started = session.activity === 'ownit' && ownit ? ownit.startedAt : (puzzle ? puzzle.startedAt : null);
+  const since = offlineSince[pid] || started || Date.now();
   return Date.now() - since;
 }
 
 // ============================================================
-// ACCOUNTABILITY PUZZLE
+// CODE UP (the puzzle activity)
 // ============================================================
 // The board is kfc-puzzle.png cut into 20 pieces (5 across, 4 down). Each team
 // owns one piece, and each piece is cut into 4 quarters, so 80 quarters total.
@@ -198,17 +201,16 @@ function offlineFor(pid) {
 // A team never unlocks its own quarters. Every round, each team is paired with
 // another team (shuffled, never linear, never the same pair twice, and never
 // a straight swap). 4 members of the SENDING team each answer one scenario.
-// Their choices (1, 2 or 3) form a 4 digit code. They walk it over to the
-// RECEIVING team, explain which behaviour each choice shows, and the receiving
-// captain enters the code, then taps which behaviour was explained for each
-// digit. That unlocks one quarter of the receiving team's piece.
+// Their choices (1, 2 or 3) form a 4 digit code. They deliver it to the
+// RECEIVING team's captain, who types it in. A correct code unlocks one
+// quarter of the receiving team's piece straight away.
 //
 // 4 rounds per team: every team sends 4 codes and receives 4 codes.
 const BOARD_COLS = 5;
 const BOARD_ROWS = 4;
 const ROUNDS = 4;
 const CODE_LENGTH = 4;
-const CAPTAIN_GRACE_MS = 20000;   // captain offline this long -> hand over
+const CAPTAIN_GRACE_MS = 30000;   // captain offline this long -> hand over
 const ANSWERER_GRACE_MS = 30000;  // answerer offline this long -> hand over
 const WRONG_LIMIT = 3;            // wrong codes in a row before a cool-down
 const LOCKOUT_MS = 20000;
@@ -360,9 +362,9 @@ function startPuzzle() {
         round: r + 1,
         from, to,
         quarter: puzzle.pieces[to] ? puzzle.pieces[to].order[r] : r,
-        status: 'pending', // pending|answering|ready|verified|unlocked
+        status: 'pending', // pending|answering|ready|unlocked
         scenarioIds: [], answerers: [], answers: [], explained: null,
-        code: null, openedAt: null, readyAt: null, verifiedAt: null, unlockedAt: null,
+        code: null, openedAt: null, readyAt: null, unlockedAt: null,
         byFacilitator: false,
       });
     }
@@ -379,7 +381,7 @@ function openNextRound(fromTeam) {
     .sort((a, b) => a.round - b.round)[0];
   if (!next) return null;
   // Only one open delivery per sending team at a time.
-  const busy = puzzle.deliveries.some(d => d.from === fromTeam && ['answering', 'ready', 'verified'].includes(d.status));
+  const busy = puzzle.deliveries.some(d => d.from === fromTeam && ['answering', 'ready'].includes(d.status));
   if (busy) return null;
   next.status = 'answering';
   next.openedAt = Date.now();
@@ -418,8 +420,9 @@ function behaviorOf(scenarioId, optionIndex) {
   return s && s.options[optionIndex] ? s.options[optionIndex].behavior : null;
 }
 
-// Chosen = what people picked. Explained = what the receiving captain heard
-// when the sending team explained each digit. Match = the two agree.
+// Chosen = which behaviour each answer showed. (The explained and matched
+// fields stay at zero now that there is no explanation step; they are kept
+// so older screens never break.)
 function computeStats(teamNumber) {
   const empty = () => Object.fromEntries(BEHAVIORS.map(b => [b, 0]));
   const chosen = empty(), explained = empty(), matched = empty();
@@ -486,7 +489,7 @@ function puzzleStateFor(pid) {
   const isCaptain = capId === pid;
   const colourOf = (num) => (teamByNumber(num) || {}).colour;
 
-  const open = puzzle.deliveries.filter(d => d.from === n && ['answering', 'ready', 'verified'].includes(d.status));
+  const open = puzzle.deliveries.filter(d => d.from === n && ['answering', 'ready'].includes(d.status));
   const tasks = [];
   open.forEach(d => {
     d.answerers.forEach((a, j) => {
@@ -552,8 +555,8 @@ function facilitatorPuzzleState() {
     teams: puzzle.inPlay.slice().sort((a, b) => a - b).map(n => {
       const t = teamByNumber(n) || {};
       const capId = puzzle.captains[n];
-      const cur = puzzle.deliveries.find(d => d.from === n && ['answering', 'ready', 'verified'].includes(d.status));
-      const waitingIn = puzzle.deliveries.filter(d => d.to === n && (d.status === 'ready' || d.status === 'verified'));
+      const cur = puzzle.deliveries.find(d => d.from === n && ['answering', 'ready'].includes(d.status));
+      const waitingIn = puzzle.deliveries.filter(d => d.to === n && d.status === 'ready');
       const att = puzzle.attempts[n] || { lockedUntil: 0 };
       return {
         number: n,
@@ -611,7 +614,7 @@ function pushBoardNow() {
 // phone has been gone too long, hand the role to someone who is here, so no
 // team can get stuck waiting for a person who left.
 function repairPuzzleRoles({ onlyMembership } = {}) {
-  if (!puzzle || session.state !== 'running') return;
+  if (!puzzle || session.activity !== 'puzzle' || session.state !== 'running') return;
   const changed = new Set();
 
   puzzle.inPlay.forEach(n => {
@@ -673,6 +676,193 @@ setInterval(() => {
 }, 5000);
 
 // ============================================================
+// OWN IT (the third activity)
+// ============================================================
+// Each team gets one of 3 cases (shuffled, 7 / 7 / 6 for 20 teams). The team
+// brainstorms at its own pace, then its captain submits, in order:
+//   1. a one-line problem statement (max 80 characters)
+//   2. three solutions
+//   3. how the solution enhances ROI = money in your till + love
+// Any step can be changed until the ROI answer is in; then the team is done
+// and locked (the facilitator can reopen it). Teams work independently.
+const OWNIT_CASES = [
+  {
+    id: 1,
+    name: 'Match Night Rush',
+    pillar: 'Loved',
+    pillarDetail: 'Guest experience, front of house',
+    text: "It's a Pakistan vs India match night. Dine-in is full, there are 60+ delivery orders queued, and the drive-thru line reaches the road. A guest at the counter is live-streaming a complaint about a 40-minute wait, and a family's birthday order has gone wrong. Decide how to redeploy crew, which orders to prioritise, how to recover the unhappy guests, and what to say publicly.",
+    tests: 'Leading under pressure, putting the guest first, decisions made in seconds.',
+    placeholder: 'Peak-hour backlog is losing guests and damaging brand image',
+  },
+  {
+    id: 2,
+    name: 'The Cold Chain Call',
+    pillar: 'Trusted',
+    pillarDetail: 'Food safety and quality, back of house',
+    text: "Load-shedding has run for three hours, and the generator failed partway through. Nobody can confirm the walk-in chiller's temperature log. Discarding the stock means running out of core menu items for the evening, and the supplier can't deliver until tomorrow. An area audit is also due tomorrow. Choose between protecting sales and protecting trust: whether to discard, how to escalate, what to tell guests, and how to keep it from happening again.",
+    tests: "Ownership, integrity when nobody is watching, accountability that doesn't depend on rank.",
+    placeholder: 'Unverified food safety is risking guest trust',
+  },
+  {
+    id: 3,
+    name: 'The Crew Crossroads',
+    pillar: 'Connected',
+    pillarDetail: 'People and team',
+    text: "Your strongest shift manager has resigned and is joining a competitor. Two crew members didn't show up today, three new hires aren't trained yet, and the team's morale is low after a harsh audit last week. Decide who steps up, how to cross-train quickly, and how to rebuild energy in the team.",
+    tests: 'Build winning teams, grow people "in person, not in title", the culture I create.',
+    placeholder: 'Understaffed, low-morale crew cannot hold service standards',
+  },
+];
+const OWNIT_PROBLEM_MAX = 80;
+const OWNIT_TEXT_MAX = 300;
+const OWNIT_ROI_QUESTION = 'How does your solution enhance ROI = money in your till + love?';
+
+let ownit = null; // { startedAt, inPlay, teams: { [n]: {...} }, spotlight }
+
+function ownitLive() { return !!ownit && session.activity === 'ownit'; }
+
+function startOwnIt() {
+  const inPlay = teams.filter(t => teamMembers(t.number).length > 0).map(t => t.number);
+  // Shuffle the teams, then deal cases 1, 2, 3, 1, 2, 3... : 7 / 7 / 6 for 20 teams.
+  const order = shuffle(inPlay);
+  const caseOrder = [1, 2, 3]; // teams are shuffled, so dealing 1, 2, 3 in order gives Case 3 the 6
+  ownit = { startedAt: Date.now(), inPlay, teams: {}, spotlight: null };
+  order.forEach((n, i) => {
+    // Keep the Code Up captain if they are still on the team, so nobody has to re-learn who it is.
+    const prevCap = puzzle && puzzle.captains && puzzle.captains[n];
+    ownit.teams[n] = {
+      caseId: caseOrder[i % 3],
+      captainId: prevCap && teamMembers(n).includes(prevCap) ? prevCap : pickOwnItCaptain(n),
+      problem: '', solutions: ['', '', ''], roi: '',
+      steps: { problem: false, solutions: false, roi: false },
+      done: false, doneAt: null, updatedAt: null,
+    };
+  });
+  session.activity = 'ownit';
+  session.state = 'running';
+}
+
+function pickOwnItCaptain(n, avoid) {
+  const members = teamMembers(n).filter(id => id !== avoid);
+  if (!members.length) return teamMembers(n)[0] || null;
+  const online = members.filter(isOnline);
+  const pool = online.length ? online : members;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function caseById(id) { return OWNIT_CASES.find(c => c.id === id); }
+
+function ownitTeamPublic(n) {
+  const t = ownit.teams[n];
+  const team = teamByNumber(n) || {};
+  return {
+    number: n,
+    name: team.name || `Team ${n}`,
+    colour: team.colour,
+    caseId: t.caseId,
+    problem: t.steps.problem ? t.problem : '',
+    solutions: t.steps.solutions ? t.solutions.slice() : ['', '', ''],
+    roi: t.steps.roi ? t.roi : '',
+    steps: { ...t.steps },
+    done: t.done,
+    doneAt: t.doneAt,
+    captainName: nameOf(t.captainId),
+  };
+}
+
+function ownitBoardState() {
+  if (!ownit) return null;
+  const list = ownit.inPlay.slice().sort((a, b) => a - b).map(ownitTeamPublic);
+  return {
+    cases: OWNIT_CASES.map(({ id, name, pillar, pillarDetail }) => ({ id, name, pillar, pillarDetail })),
+    teams: list,
+    completeCount: list.filter(t => t.done).length,
+    total: list.length,
+    spotlight: ownit.spotlight,
+  };
+}
+
+function ownitFacilitatorState() {
+  if (!ownit) return null;
+  return {
+    ...ownitBoardState(),
+    captains: Object.fromEntries(ownit.inPlay.map(n => [n, {
+      captainId: ownit.teams[n].captainId,
+      captainOnline: ownit.teams[n].captainId ? isOnline(ownit.teams[n].captainId) : false,
+      members: teamMembers(n).map(id => ({ id, name: nameOf(id), online: isOnline(id) })),
+    }])),
+  };
+}
+
+// One person's view: only their own team's case and answers.
+function ownitStateFor(pid) {
+  if (!ownit) return null;
+  const p = participants[pid];
+  if (!p) return null;
+  const team = teams.find(t => t.id === p.teamId);
+  if (!team || !ownit.teams[team.number]) return { inPlay: false };
+  const n = team.number;
+  const t = ownit.teams[n];
+  return {
+    inPlay: true,
+    gameId: ownit.startedAt,
+    teamNumber: n,
+    colour: team.colour,
+    isCaptain: t.captainId === pid,
+    captainName: nameOf(t.captainId),
+    captainOnline: t.captainId ? isOnline(t.captainId) : false,
+    case: caseById(t.caseId),
+    problem: t.problem,
+    solutions: t.solutions.slice(),
+    roi: t.roi,
+    steps: { ...t.steps },
+    done: t.done,
+    limits: { problem: OWNIT_PROBLEM_MAX, text: OWNIT_TEXT_MAX },
+    roiQuestion: OWNIT_ROI_QUESTION,
+    members: teamMembers(n).map(id => ({ name: nameOf(id), isMe: id === pid, isCaptain: id === t.captainId })),
+  };
+}
+
+function pushOwnItTeams(teamNumbers) {
+  if (!ownit) return;
+  new Set(teamNumbers).forEach(n => {
+    teamMembers(n).forEach(pid => { if (isOnline(pid)) io.to('p:' + pid).emit('ownit_me', ownitStateFor(pid)); });
+  });
+}
+function pushOwnItBoard() {
+  io.to('projectors').emit('ownit_board', ownitBoardState());
+  io.to('facilitators').emit('ownit_facilitator', ownitFacilitatorState());
+}
+
+// Same rule as Code Up: a captain offline for 30 seconds hands over to a
+// teammate who is online; a captain who left the team is replaced at once.
+function repairOwnItCaptains({ onlyMembership } = {}) {
+  if (!ownitLive()) return;
+  const changed = [];
+  ownit.inPlay.forEach(n => {
+    const t = ownit.teams[n];
+    const members = teamMembers(n);
+    if (!members.length) return;
+    if (!t.captainId || !members.includes(t.captainId)) {
+      t.captainId = pickOwnItCaptain(n);
+      changed.push(n);
+    } else if (!onlyMembership && !isOnline(t.captainId) && offlineFor(t.captainId) > CAPTAIN_GRACE_MS) {
+      const alt = members.filter(id => id !== t.captainId && isOnline(id));
+      if (alt.length) {
+        t.captainId = alt[Math.floor(Math.random() * alt.length)];
+        changed.push(n);
+      }
+    }
+  });
+  if (changed.length) { pushOwnItTeams(changed); pushOwnItBoard(); }
+}
+
+setInterval(() => {
+  try { repairOwnItCaptains(); } catch (e) { console.error('own it repair failed', e); }
+}, 5000);
+
+// ============================================================
 // SOCKET EVENTS
 // ============================================================
 // Phones only need their own answers, never everyone's, and no puzzle board.
@@ -699,6 +889,7 @@ function fullState() {
     session, participants, answers, teams, questions: QUESTIONS,
     // Anyone connecting mid-puzzle gets the current board straight away.
     puzzle: session.activity === 'puzzle' ? projectorPuzzleState() : null,
+    ownit: session.activity === 'ownit' ? ownitBoardState() : null,
   };
 }
 
@@ -711,9 +902,13 @@ io.on('connection', (socket) => {
   // Projector and facilitator screens announce themselves so they receive
   // the board and the facilitator detail (codes included) respectively.
   socket.on('hello', ({ role } = {}) => {
+    // The screen's listeners are ready by the time it says hello, so send the
+    // full picture again here (the copy sent on connect can arrive too early).
+    if (role === 'projector' || role === 'facilitator') socket.emit('state_sync', fullState());
     if (role === 'projector') {
       socket.join('projectors');
       if (puzzle) socket.emit('puzzle_board', projectorPuzzleState());
+      if (ownit) socket.emit('ownit_board', ownitBoardState());
     }
     if (role === 'facilitator') {
       socket.join('facilitators');
@@ -721,6 +916,10 @@ io.on('connection', (socket) => {
       if (puzzle) {
         socket.emit('puzzle_board', projectorPuzzleState());
         socket.emit('puzzle_facilitator', facilitatorPuzzleState());
+      }
+      if (ownit) {
+        socket.emit('ownit_board', ownitBoardState());
+        socket.emit('ownit_facilitator', ownitFacilitatorState());
       }
     }
   });
@@ -730,6 +929,7 @@ io.on('connection', (socket) => {
     if (id && participants[id]) {
       markOnline(socket, id);
       if (puzzle) socket.emit('puzzle_me', puzzleStateFor(id));
+      if (ownit) socket.emit('ownit_me', ownitStateFor(id));
     }
     if (socket.data.role === 'phone') socket.emit('state_sync', phoneState(socket.data.pid));
   });
@@ -739,6 +939,7 @@ io.on('connection', (socket) => {
   socket.on('request_sync', () => {
     socket.emit('state_sync', stateFor(socket));
     if (puzzle && socket.data.pid) socket.emit('puzzle_me', puzzleStateFor(socket.data.pid));
+    if (ownit && socket.data.pid) socket.emit('ownit_me', ownitStateFor(socket.data.pid));
   });
 
   socket.on('disconnect', () => {
@@ -757,6 +958,7 @@ io.on('connection', (socket) => {
       socket.emit('joined', participants[id]);
       socket.emit('state_sync', stateFor(socket));
       if (puzzle) socket.emit('puzzle_me', puzzleStateFor(id));
+      if (ownit) socket.emit('ownit_me', ownitStateFor(id));
       return;
     }
 
@@ -776,6 +978,7 @@ io.on('connection', (socket) => {
         socket.emit('joined', p);
         socket.emit('state_sync', stateFor(socket));
         if (puzzle) socket.emit('puzzle_me', puzzleStateFor(p.id));
+        if (ownit) socket.emit('ownit_me', ownitStateFor(p.id));
         return;
       }
     }
@@ -833,6 +1036,11 @@ io.on('connection', (socket) => {
       pushTeams([fromTeam && fromTeam.number, target.number].filter(Boolean));
       scheduleBoard();
     }
+    if (ownit) {
+      repairOwnItCaptains({ onlyMembership: true });
+      pushOwnItTeams([fromTeam && fromTeam.number, target.number].filter(Boolean));
+      pushOwnItBoard();
+    }
   });
 
   socket.on('facilitator_delete_participant', ({ participantId } = {}) => {
@@ -847,6 +1055,11 @@ io.on('connection', (socket) => {
       repairPuzzleRoles({ onlyMembership: true });
       if (fromTeam) pushTeams([fromTeam.number]);
       scheduleBoard();
+    }
+    if (ownit) {
+      repairOwnItCaptains({ onlyMembership: true });
+      if (fromTeam) pushOwnItTeams([fromTeam.number]);
+      pushOwnItBoard();
     }
   });
 
@@ -876,7 +1089,7 @@ io.on('connection', (socket) => {
 
   // Ends the game early and shows the whole picture.
   socket.on('facilitator_puzzle_reveal', () => {
-    if (!puzzle) return;
+    if (!puzzle || session.activity !== 'puzzle') return;
     completePuzzle();
     io.emit('session_update', session);
     pushAllTeams();
@@ -891,7 +1104,7 @@ io.on('connection', (socket) => {
 
   // For a pair that is genuinely stuck: open that quarter without the code.
   socket.on('facilitator_puzzle_unlock', ({ deliveryId } = {}) => {
-    if (!puzzle) return;
+    if (!puzzle || session.activity !== 'puzzle') return;
     const d = puzzle.deliveries.find(x => x.id === deliveryId);
     if (!d || d.status === 'unlocked' || d.status === 'pending') return;
     unlockDelivery(d, null, true);
@@ -901,7 +1114,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('facilitator_puzzle_set_captain', ({ teamNumber, participantId } = {}) => {
-    if (!puzzle || !teamMembers(teamNumber).includes(participantId)) return;
+    if (!puzzle || session.activity !== 'puzzle' || !teamMembers(teamNumber).includes(participantId)) return;
     puzzle.captains[teamNumber] = participantId;
     const partners = puzzle.deliveries.filter(d => d.to === teamNumber).map(d => d.from);
     pushTeams([teamNumber, ...partners]);
@@ -921,7 +1134,7 @@ io.on('connection', (socket) => {
 
   socket.on('puzzle_answer', ({ participantId, deliveryId, position, optionIndex } = {}) => {
     const pid = whoAmI(participantId);
-    if (!pid || !puzzle || session.state !== 'running') return;
+    if (!pid || !puzzle || session.activity !== 'puzzle' || session.state !== 'running') return;
     const d = puzzle.deliveries.find(x => x.id === deliveryId);
     const j = Number(position) - 1;
     const opt = Number(optionIndex);
@@ -942,7 +1155,7 @@ io.on('connection', (socket) => {
 
   socket.on('puzzle_submit_code', ({ participantId, code } = {}) => {
     const pid = whoAmI(participantId);
-    if (!pid || !puzzle || session.state !== 'running') return;
+    if (!pid || !puzzle || session.activity !== 'puzzle' || session.state !== 'running') return;
     const team = teams.find(t => t.id === participants[pid].teamId);
     if (!team || !puzzle.inPlay.includes(team.number)) return;
     const n = team.number;
@@ -955,17 +1168,14 @@ io.on('connection', (socket) => {
       socket.emit('puzzle_error', { message: 'Too many wrong codes. Wait a moment, then try again.', lockedUntil: att.lockedUntil });
       return;
     }
-    // Only one code can be mid-explanation at a time per team.
-    const midway = puzzle.deliveries.find(d => d.to === n && d.status === 'verified');
-    if (midway) {
-      socket.emit('puzzle_error', { message: `Finish matching the behaviours for Team ${midway.from} first.` });
-      return;
-    }
     const clean = String(code || '').replace(/\D/g, '');
     const d = puzzle.deliveries
       .filter(x => x.to === n && x.status === 'ready' && x.code === clean)
       .sort((a, b) => a.round - b.round)[0];
     if (!d) {
+      // The same correct code sent twice (a double tap) is not a wrong code.
+      const justUsed = puzzle.deliveries.some(x => x.to === n && x.status === 'unlocked' && x.code === clean && Date.now() - (x.unlockedAt || 0) < 15000);
+      if (justUsed) return;
       att.wrong += 1;
       if (att.wrong >= WRONG_LIMIT) {
         att.wrong = 0;
@@ -978,36 +1188,104 @@ io.on('connection', (socket) => {
       scheduleBoard();
       return;
     }
+    // Correct code: the quarter unlocks straight away.
     att.wrong = 0;
-    d.status = 'verified';
-    d.verifiedAt = Date.now();
-    pushTeams([n, d.from]);
-    scheduleBoard();
-  });
-
-  socket.on('puzzle_confirm', ({ participantId, deliveryId, explained } = {}) => {
-    const pid = whoAmI(participantId);
-    if (!pid || !puzzle || session.state !== 'running') return;
-    const d = puzzle.deliveries.find(x => x.id === deliveryId);
-    if (!d || d.status !== 'verified') return;
-    if (puzzle.captains[d.to] !== pid) {
-      socket.emit('puzzle_error', { message: 'Only your team captain can confirm this.' });
-      return;
-    }
-    if (!Array.isArray(explained) || explained.length !== CODE_LENGTH) return;
-    const clean = explained.map(e => (BEHAVIORS.includes(e) ? e : 'none'));
-    unlockDelivery(d, clean, false);
+    unlockDelivery(d, null, false);
     if (session.state === 'complete') {
       io.emit('session_update', session);
       pushAllTeams();
     } else {
-      // The sender's next round just opened, and the next round's receiver
-      // needs to see it coming.
+      // The sender's next round just opened, and its new receiver needs to
+      // see the code coming.
       const next = puzzle.deliveries.find(x => x.from === d.from && x.status === 'answering');
       pushTeams([d.to, d.from, next ? next.to : null].filter(Boolean));
     }
     pushBoardNow();
   });
+  // ---------- OWN IT: FACILITATOR ----------
+  socket.on('facilitator_start_ownit', () => {
+    if (teams.length === 0) return; // needs teams first
+    if (!ownit) startOwnIt(); else { session.activity = 'ownit'; session.state = 'running'; }
+    io.emit('session_update', session);
+    io.emit('ownit_started', ownitBoardState());
+    pushOwnItTeams(ownit.inPlay);
+    pushOwnItBoard();
+  });
+
+  socket.on('facilitator_restart_ownit', () => {
+    if (teams.length === 0) return;
+    startOwnIt(); // fresh case draw, all answers cleared
+    io.emit('session_update', session);
+    io.emit('ownit_started', ownitBoardState());
+    pushOwnItTeams(ownit.inPlay);
+    pushOwnItBoard();
+  });
+
+  socket.on('facilitator_ownit_reopen', ({ teamNumber } = {}) => {
+    if (!ownitLive() || !ownit.teams[teamNumber]) return;
+    const t = ownit.teams[teamNumber];
+    t.done = false; t.doneAt = null;
+    pushOwnItTeams([teamNumber]);
+    pushOwnItBoard();
+  });
+
+  socket.on('facilitator_ownit_spotlight', ({ teamNumber } = {}) => {
+    if (!ownit) return;
+    ownit.spotlight = ownit.teams[teamNumber] ? teamNumber : null;
+    pushOwnItBoard();
+  });
+
+  socket.on('facilitator_ownit_set_captain', ({ teamNumber, participantId } = {}) => {
+    if (!ownitLive() || !ownit.teams[teamNumber] || !teamMembers(teamNumber).includes(participantId)) return;
+    ownit.teams[teamNumber].captainId = participantId;
+    pushOwnItTeams([teamNumber]);
+    pushOwnItBoard();
+  });
+
+  // ---------- OWN IT: PHONES ----------
+  socket.on('ownit_get_me', ({ participantId } = {}) => {
+    const pid = whoAmI(participantId);
+    if (pid && ownit) socket.emit('ownit_me', ownitStateFor(pid));
+  });
+
+  // step: 'problem' | 'solutions' | 'roi'
+  socket.on('ownit_submit', ({ participantId, step, problem, solutions, roi } = {}) => {
+    const pid = whoAmI(participantId);
+    if (!pid || !ownitLive()) return;
+    const team = teams.find(t => t.id === participants[pid].teamId);
+    const t = team && ownit.teams[team.number];
+    if (!t) return;
+    const fail = (message) => socket.emit('ownit_error', { message });
+    if (t.captainId !== pid) return fail('Only your team captain can submit.');
+    if (t.done) return fail('Your team has already submitted. Ask the facilitator if you need to change something.');
+    const clean = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+    if (step === 'problem') {
+      const v = clean(problem);
+      if (!v) return fail('Write the problem in one line.');
+      if (v.length > OWNIT_PROBLEM_MAX) return fail(`Keep the problem to ${OWNIT_PROBLEM_MAX} characters.`);
+      t.problem = v; t.steps.problem = true;
+    } else if (step === 'solutions') {
+      if (!t.steps.problem) return fail('Submit the problem statement first.');
+      if (!Array.isArray(solutions) || solutions.length !== 3) return fail('Write all 3 solutions.');
+      const v = solutions.map(clean);
+      if (v.some(x => !x)) return fail('Write all 3 solutions.');
+      if (v.some(x => x.length > OWNIT_TEXT_MAX)) return fail(`Keep each solution to ${OWNIT_TEXT_MAX} characters.`);
+      t.solutions = v; t.steps.solutions = true;
+    } else if (step === 'roi') {
+      if (!t.steps.problem || !t.steps.solutions) return fail('Submit the problem and the 3 solutions first.');
+      const v = clean(roi);
+      if (!v) return fail('Answer the ROI question.');
+      if (v.length > OWNIT_TEXT_MAX) return fail(`Keep the answer to ${OWNIT_TEXT_MAX} characters.`);
+      t.roi = v; t.steps.roi = true;
+      t.done = true; t.doneAt = Date.now();
+    } else {
+      return;
+    }
+    t.updatedAt = Date.now();
+    pushOwnItTeams([team.number]);
+    pushOwnItBoard();
+  });
+
 });
 
 // ============================================================
