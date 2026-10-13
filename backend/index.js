@@ -730,10 +730,11 @@ function startOwnIt() {
   ownit = { startedAt: Date.now(), inPlay, teams: {}, spotlight: null };
   order.forEach((n, i) => {
     // Keep the Code Up captain if they are still on the team, so nobody has to re-learn who it is.
+    // (only if they are online right now; otherwise pick someone who is)
     const prevCap = puzzle && puzzle.captains && puzzle.captains[n];
     ownit.teams[n] = {
       caseId: caseOrder[i % 3],
-      captainId: prevCap && teamMembers(n).includes(prevCap) ? prevCap : pickOwnItCaptain(n),
+      captainId: prevCap && teamMembers(n).includes(prevCap) && isOnline(prevCap) ? prevCap : pickOwnItCaptain(n),
       problem: '', solutions: ['', '', ''], roi: '',
       steps: { problem: false, solutions: false, roi: false },
       done: false, doneAt: null, updatedAt: null,
@@ -965,15 +966,20 @@ io.on('connection', (socket) => {
     // Lost identity recovery. Once teams exist, someone whose phone lost its
     // stored id (in-app browser, cleared storage, different browser) can
     // re-enter their name and get their original self, team and role back.
-    // Only matches a single participant who is currently offline, so two
-    // people with the same name can never be merged into one.
+    //  - their old phone is offline: the single offline match is them.
+    //  - their old phone is still connected (they scanned again in another
+    //    browser): if exactly one person has that name AND gender, it is them.
+    // Two people who share a name are never merged while both are online.
     if (teams.length > 0) {
       const base = (n) => n.replace(/\s\(\d+\)$/, '').trim().toLowerCase();
       const wanted = base(name);
-      const candidates = Object.values(participants).filter((p) =>
-        base(p.name) === wanted && !isOnline(p.id) && (!gender || p.gender === gender));
-      if (candidates.length === 1) {
-        const p = candidates[0];
+      const sameName = Object.values(participants).filter((p) =>
+        base(p.name) === wanted && (!gender || p.gender === gender));
+      const offline = sameName.filter((p) => !isOnline(p.id));
+      const match = offline.length === 1 ? offline[0]
+        : (GENDERS.includes(gender) && sameName.length === 1 ? sameName[0] : null);
+      if (match) {
+        const p = match;
         markOnline(socket, p.id);
         socket.emit('joined', p);
         socket.emit('state_sync', stateFor(socket));
