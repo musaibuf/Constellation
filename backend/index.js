@@ -727,7 +727,7 @@ function startOwnIt() {
   // Shuffle the teams, then deal cases 1, 2, 3, 1, 2, 3... : 7 / 7 / 6 for 20 teams.
   const order = shuffle(inPlay);
   const caseOrder = [1, 2, 3]; // teams are shuffled, so dealing 1, 2, 3 in order gives Case 3 the 6
-  ownit = { startedAt: Date.now(), inPlay, teams: {}, spotlight: null };
+  ownit = { startedAt: Date.now(), inPlay, teams: {}, spotlight: null, view: 'all' };
   order.forEach((n, i) => {
     // Keep the Code Up captain if they are still on the team, so nobody has to re-learn who it is.
     // (only if they are online right now; otherwise pick someone who is)
@@ -782,6 +782,7 @@ function ownitBoardState() {
     completeCount: list.filter(t => t.done).length,
     total: list.length,
     spotlight: ownit.spotlight,
+    view: ownit.view || 'all', // what the projector shows: 'all' or one case id (1, 2, 3)
   };
 }
 
@@ -1240,6 +1241,14 @@ io.on('connection', (socket) => {
   socket.on('facilitator_ownit_spotlight', ({ teamNumber } = {}) => {
     if (!ownit) return;
     ownit.spotlight = ownit.teams[teamNumber] ? teamNumber : null;
+    pushOwnItBoard();
+  });
+
+  // Projector view from the console: 'all' cases, or one case (1, 2, 3).
+  socket.on('facilitator_ownit_view', ({ view } = {}) => {
+    if (!ownit) return;
+    if (view !== 'all' && !OWNIT_CASES.some(c => c.id === view)) return;
+    ownit.view = view;
     pushOwnItBoard();
   });
 
