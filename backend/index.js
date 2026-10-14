@@ -735,7 +735,7 @@ function startOwnIt() {
     ownit.teams[n] = {
       caseId: caseOrder[i % 3],
       captainId: prevCap && teamMembers(n).includes(prevCap) && isOnline(prevCap) ? prevCap : pickOwnItCaptain(n),
-      problem: '', solutions: ['', '', ''], roi: '',
+      problem: '', solutions: ['', '', ''], best: 0, roi: '',
       steps: { problem: false, solutions: false, roi: false },
       done: false, doneAt: null, updatedAt: null,
     };
@@ -764,6 +764,7 @@ function ownitTeamPublic(n) {
     caseId: t.caseId,
     problem: t.steps.problem ? t.problem : '',
     solutions: t.steps.solutions ? t.solutions.slice() : ['', '', ''],
+    best: t.steps.solutions ? t.best : null, // index of the solution the team marked as its best
     roi: t.steps.roi ? t.roi : '',
     steps: { ...t.steps },
     done: t.done,
@@ -816,6 +817,7 @@ function ownitStateFor(pid) {
     case: caseById(t.caseId),
     problem: t.problem,
     solutions: t.solutions.slice(),
+    best: t.best,
     roi: t.roi,
     steps: { ...t.steps },
     done: t.done,
@@ -1255,7 +1257,7 @@ io.on('connection', (socket) => {
   });
 
   // step: 'problem' | 'solutions' | 'roi'
-  socket.on('ownit_submit', ({ participantId, step, problem, solutions, roi } = {}) => {
+  socket.on('ownit_submit', ({ participantId, step, problem, solutions, best, roi } = {}) => {
     const pid = whoAmI(participantId);
     if (!pid || !ownitLive()) return;
     const team = teams.find(t => t.id === participants[pid].teamId);
@@ -1276,7 +1278,9 @@ io.on('connection', (socket) => {
       const v = solutions.map(clean);
       if (v.some(x => !x)) return fail('Write all 3 solutions.');
       if (v.some(x => x.length > OWNIT_TEXT_MAX)) return fail(`Keep each solution to ${OWNIT_TEXT_MAX} characters.`);
-      t.solutions = v; t.steps.solutions = true;
+      const b = best === undefined || best === null ? 0 : best;
+      if (![0, 1, 2].includes(b)) return fail('Pick your best solution.');
+      t.solutions = v; t.best = b; t.steps.solutions = true;
     } else if (step === 'roi') {
       if (!t.steps.problem || !t.steps.solutions) return fail('Submit the problem and the 3 solutions first.');
       const v = clean(roi);
