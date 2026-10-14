@@ -576,6 +576,7 @@ const ICON_PATHS = {
   edit: <><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>,
   x: <path d="M6 6l12 12M18 6L6 18" />,
   download: <><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
+  star: <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5z" />,
   bulb: <path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z" />,
   reflect: <><path d="M3.5 12a8.5 8.5 0 0114.6-5.9L20.5 8.5" /><path d="M20.5 3.5v5h-5" /><path d="M20.5 12a8.5 8.5 0 01-14.6 5.9L3.5 15.5" /><path d="M3.5 20.5v-5h5" /></>,
 };
@@ -1122,6 +1123,7 @@ function PuzzleBoard({ board, maxW, maxH }) {
 }
 
 function PuzzleProjector({ board }) {
+  const [qrOpen, setQrOpen] = useState(false);
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
@@ -1154,10 +1156,12 @@ function PuzzleProjector({ board }) {
             </>
           )}
         </div>
-        <div style={{ flex: 1, textAlign: 'right', fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>
-          Convey Meaning. Create Significance.
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 18 }}>
+          <span style={{ fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>Convey Meaning. Create Significance.</span>
+          <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
         </div>
       </div>
+      <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
 
       <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: sideW + pad * 2, bottom: pad, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <PuzzleBoard board={board} maxW={size.w - sideW - pad * 3} maxH={size.h - TOP_BAR_HEIGHT - pad * 2} />
@@ -1635,10 +1639,12 @@ async function drawOwnItCard(team, kase, members, number, total) {
   const gap = 26, boxW = (W - 2 * M - 2 * gap) / 3, boxY = y + 22, boxH = 330;
   [0, 1, 2].forEach((i) => {
     const bx = M + i * (boxW + gap);
-    fillRound(ctx, bx, boxY, boxW, boxH, 20, skin, '#ead3bc', 2);
-    fillRound(ctx, bx + 24, boxY + 24, 46, 46, 12, '#e8571a');
-    ctx.fillStyle = '#fff'; ctx.font = '800 26px Poppins, sans-serif'; ctx.textAlign = 'center';
+    const isBest = team.steps.solutions && (team.best || 0) === i;
+    fillRound(ctx, bx, boxY, boxW, boxH, 20, isBest ? '#fbeccd' : skin, isBest ? '#e8b923' : '#ead3bc', isBest ? 4 : 2);
+    fillRound(ctx, bx + 24, boxY + 24, 46, 46, 12, isBest ? '#e8b923' : '#e8571a');
+    ctx.fillStyle = isBest ? '#1a1410' : '#fff'; ctx.font = '800 26px Poppins, sans-serif'; ctx.textAlign = 'center';
     ctx.fillText(String(i + 1), bx + 47, boxY + 57); ctx.textAlign = 'left';
+    if (isBest) spacedLabel(ctx, 'Best solution', bx + 86, boxY + 56, '#a47d06', 19);
     ctx.fillStyle = ink; ctx.font = '400 25px Inter, sans-serif';
     if (team.steps.solutions) drawText(ctx, team.solutions[i], bx + 24, boxY + 112, boxW - 48, 35, 6);
     else missing(boxY + 112, bx + 24);
@@ -1727,7 +1733,7 @@ function StepTicks({ steps = {}, size = 13, gap = 12, dim, nowrap, light }) {
 }
 
 // Read-only view of what a team has submitted so far.
-function OwnItAnswers({ problem, solutions = [], roi, steps = {}, waitingText = 'Not submitted yet', parts = ['problem', 'solutions', 'roi'] }) {
+function OwnItAnswers({ problem, solutions = [], best, roi, steps = {}, waitingText = 'Not submitted yet', parts = ['problem', 'solutions', 'roi'] }) {
   const label = { fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 6 };
   const waiting = <div style={{ color: 'var(--ink-faint)', fontStyle: 'italic', fontSize: 14 }}>{waitingText}</div>;
   return (
@@ -1741,9 +1747,12 @@ function OwnItAnswers({ problem, solutions = [], roi, steps = {}, waitingText = 
         {steps.solutions ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {solutions.map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, background: 'rgba(255,255,255,.08)' }}>{i + 1}</span>
-                <span style={{ fontSize: 14.5, lineHeight: 1.45 }}>{s}</span>
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', ...(best === i ? { padding: '8px 10px', margin: '-8px -10px', borderRadius: 10, background: 'rgba(232,185,35,.1)', border: '1px solid rgba(232,185,35,.35)' } : {}) }}>
+                <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, background: best === i ? 'var(--gold)' : 'rgba(255,255,255,.08)', color: best === i ? '#1a1410' : 'inherit' }}>{i + 1}</span>
+                <span style={{ fontSize: 14.5, lineHeight: 1.45, flex: 1 }}>
+                  {best === i && <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 3 }}><Icon name="star" size={12} stroke={2.2} /> Best solution</span>}
+                  {s}
+                </span>
               </div>
             ))}
           </div>
@@ -1767,7 +1776,7 @@ const ownitFieldStyle = { textAlign: 'left', fontSize: 15.5, lineHeight: 1.45, p
 /* ============================================================
    OWN IT: PARTICIPANT (phone)
    ============================================================ */
-const EMPTY_DRAFT = { problem: '', solutions: ['', '', ''], roi: '' };
+const EMPTY_DRAFT = { problem: '', solutions: ['', '', ''], best: 0, roi: '' };
 
 function OwnItParticipant({ team, participantId }) {
   const [me, setMe] = useState(null);
@@ -1794,7 +1803,7 @@ function OwnItParticipant({ team, participantId }) {
         const d = draftRef.current;
         const same = step === 'problem' ? s.problem === cleanText(d.problem)
           : step === 'roi' ? s.roi === cleanText(d.roi)
-            : s.solutions.join('|') === d.solutions.map(cleanText).join('|');
+            : s.solutions.join('|') === d.solutions.map(cleanText).join('|') && s.best === (d.best || 0);
         if (same) {
           pendingRef.current = null; setPending(null);
           setEditing((e) => ({ ...e, [step]: false }));
@@ -1829,7 +1838,7 @@ function OwnItParticipant({ team, participantId }) {
     if (!draftKey) return;
     let stored = null;
     try { stored = JSON.parse(window.localStorage.getItem(draftKey)); } catch (e) { stored = null; }
-    setDraft(stored && Array.isArray(stored.solutions) ? stored : EMPTY_DRAFT);
+    setDraft(stored && Array.isArray(stored.solutions) ? { ...EMPTY_DRAFT, ...stored } : EMPTY_DRAFT);
     setEditing({});
   }, [draftKey]);
   useEffect(() => {
@@ -1844,6 +1853,7 @@ function OwnItParticipant({ team, participantId }) {
     setDraft((d) => ({
       problem: me.steps.problem && !editing.problem ? me.problem : d.problem,
       solutions: me.steps.solutions && !editing.solutions ? me.solutions.slice() : d.solutions,
+      best: me.steps.solutions && !editing.solutions ? (me.best || 0) : (d.best || 0),
       roi: me.steps.roi && !editing.roi ? me.roi : d.roi,
     }));
   }, [me, editing]);
@@ -1859,7 +1869,7 @@ function OwnItParticipant({ team, participantId }) {
   }, [pending]);
 
   function submit(step) {
-    const payload = step === 'problem' ? { problem: draft.problem } : step === 'solutions' ? { solutions: draft.solutions } : { roi: draft.roi };
+    const payload = step === 'problem' ? { problem: draft.problem } : step === 'solutions' ? { solutions: draft.solutions, best: draft.best || 0 } : { roi: draft.roi };
     pendingRef.current = step; setPending(step); setError(null);
     socket.emit('ownit_submit', { participantId, step, ...payload });
   }
@@ -1973,7 +1983,7 @@ function OwnItParticipant({ team, participantId }) {
             <p className="lc-sub" style={{ margin: 0 }}>Your team's answers are locked in and on the big screen. Well done.</p>
           </div>
           <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-            <OwnItAnswers problem={me.problem} solutions={me.solutions} roi={me.roi} steps={me.steps} />
+            <OwnItAnswers problem={me.problem} solutions={me.solutions} best={me.best} roi={me.roi} steps={me.steps} />
           </div>
         </>
       ) : !isCap ? (
@@ -1986,7 +1996,7 @@ function OwnItParticipant({ team, participantId }) {
             </p>
           </div>
           <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-            <OwnItAnswers problem={me.problem} solutions={me.solutions} roi={me.roi} steps={me.steps} waitingText="Waiting for your captain" />
+            <OwnItAnswers problem={me.problem} solutions={me.solutions} best={me.best} roi={me.roi} steps={me.steps} waitingText="Waiting for your captain" />
           </div>
         </>
       ) : (
@@ -2020,19 +2030,29 @@ function OwnItParticipant({ team, participantId }) {
               <p style={{ margin: 0, color: 'var(--ink-faint)' }}>Submit the problem statement first.</p>
             ) : me.steps.solutions && !editing.solutions ? (
               <>
-                <OwnItAnswers solutions={me.solutions} steps={{ solutions: true }} parts={['solutions']} />
+                <OwnItAnswers solutions={me.solutions} best={me.best} steps={{ solutions: true }} parts={['solutions']} />
                 {editBtn('solutions')}
               </>
             ) : (
               <>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, color: 'var(--ink-dim)' }}>Solution {i + 1}</div>
-                    <textarea className="lc-input" rows={3} value={draft.solutions[i]} maxLength={lim.text} style={{ ...ownitFieldStyle, resize: 'vertical' }}
-                      onChange={(e) => { const v = e.target.value; setDraft((d) => { const s = d.solutions.slice(); s[i] = v; return { ...d, solutions: s }; }); }} />
-                    <CharCount value={draft.solutions[i]} max={lim.text} />
-                  </div>
-                ))}
+                <p style={{ margin: '0 0 12px', color: 'var(--ink-dim)', fontSize: 14 }}>Write 3 solutions, then tap the star on the one your team thinks is best.</p>
+                {[0, 1, 2].map((i) => {
+                  const isBest = (draft.best || 0) === i;
+                  return (
+                    <div key={i} style={{ marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-dim)' }}>Solution {i + 1}</span>
+                        <button type="button" onClick={() => setDraft((d) => ({ ...d, best: i }))} style={{
+                          marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                          border: `1px solid ${isBest ? 'var(--gold)' : 'rgba(255,255,255,.15)'}`, background: isBest ? 'rgba(232,185,35,.18)' : 'transparent', color: isBest ? 'var(--gold)' : 'var(--ink-faint)',
+                        }}><Icon name="star" size={13} stroke={2.2} /> {isBest ? 'Best solution' : 'Mark as best'}</button>
+                      </div>
+                      <textarea className="lc-input" rows={3} value={draft.solutions[i]} maxLength={lim.text} style={{ ...ownitFieldStyle, resize: 'vertical', ...(isBest ? { borderColor: 'rgba(232,185,35,.55)' } : {}) }}
+                        onChange={(e) => { const v = e.target.value; setDraft((d) => { const s = d.solutions.slice(); s[i] = v; return { ...d, solutions: s }; }); }} />
+                      <CharCount value={draft.solutions[i]} max={lim.text} />
+                    </div>
+                  );
+                })}
                 <div style={{ display: 'flex', gap: 10 }}>
                   {editing.solutions && cancelBtn('solutions')}
                   <button className="lc-btn lc-btn-primary" style={{ flex: 1 }} disabled={draft.solutions.some((s) => !cleanText(s)) || busy('solutions')} onClick={() => submit('solutions')}>
@@ -2130,14 +2150,20 @@ function OwnItSpotlight({ team, kase, onClose }) {
 
         <div style={{ fontSize: 'clamp(12px,.9vw,16px)', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(232,185,35,.9)', fontWeight: 700, marginBottom: 12 }}>3 solutions</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18, marginBottom: '4vh' }}>
-          {[0, 1, 2].map((i) => (
-            <div key={i} style={{ padding: '22px 22px', borderRadius: 18, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, background: 'rgba(232,87,26,.2)', color: '#e8571a', marginBottom: 12 }}>{i + 1}</div>
+          {[0, 1, 2].map((i) => {
+            const isBest = team.steps.solutions && (team.best || 0) === i;
+            return (
+            <div key={i} style={{ padding: '22px 22px', borderRadius: 18, background: isBest ? 'rgba(232,185,35,.09)' : 'rgba(255,255,255,.04)', border: `${isBest ? 2 : 1}px solid ${isBest ? 'rgba(232,185,35,.7)' : 'rgba(255,255,255,.08)'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 20, background: isBest ? '#e8b923' : 'rgba(232,87,26,.2)', color: isBest ? '#1a1410' : '#e8571a' }}>{i + 1}</div>
+                {isBest && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'clamp(11px,.8vw,15px)', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase', color: '#e8b923' }}><Icon name="star" size={16} stroke={2.2} /> Best solution</span>}
+              </div>
               <div style={{ fontSize: 'clamp(16px,1.35vw,25px)', lineHeight: 1.4 }}>
                 {team.steps.solutions ? team.solutions[i] : <span style={{ opacity: 0.4 }}>Not submitted yet</span>}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ padding: '24px 26px', borderRadius: 18, background: 'rgba(232,185,35,.07)', border: '1px solid rgba(232,185,35,.3)' }}>
@@ -2151,7 +2177,10 @@ function OwnItSpotlight({ team, kase, onClose }) {
   );
 }
 
+const cardLabel = (colour) => ({ fontSize: 'clamp(9px,.55vw,11px)', fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: colour, marginBottom: 3 });
+
 function OwnItProjector({ board }) {
+  const [qrOpen, setQrOpen] = useState(false);
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [localOpen, setLocalOpen] = useState(null);
   const [dismissed, setDismissed] = useState(null);
@@ -2194,10 +2223,12 @@ function OwnItProjector({ board }) {
           <span style={{ color: '#e8571a' }}>{board ? board.completeCount : 0}</span>
           <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 20} teams complete</span>
         </div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 18 }}>
           <LeapBrand />
+          <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
         </div>
       </div>
+      <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
 
       <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: pad, bottom: pad, display: 'flex', flexDirection: 'column', gap }}>
         {!board && <div style={{ margin: 'auto', color: 'rgba(245,240,232,.5)' }}>Loading...</div>}
@@ -2219,18 +2250,31 @@ function OwnItProjector({ board }) {
                   return (
                     <button key={t.number} onClick={() => setLocalOpen(t.number)} className={t.done ? 'lc-card-done' : ''} style={{
                       width: cardW, flexShrink: 0, textAlign: 'left', cursor: 'pointer', color: '#2a1d14', font: 'inherit',
-                      padding: '14px 15px', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 8,
+                      padding: '12px 14px', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 9,
                       background: started ? '#f7e6d3' : '#efe2d4',
                       border: `2px solid ${t.done ? '#2ecc71' : 'rgba(42,29,20,.14)'}`,
                       opacity: started ? 1 : 0.55, transition: 'opacity .4s, border-color .4s, background .4s',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 'clamp(13px,1vw,17px)' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.colour, boxShadow: '0 0 0 2px rgba(42,29,20,.12)' }} />Team {t.number}
-                        {t.done && <span style={{ marginLeft: 'auto', color: '#178a4c', display: 'inline-flex' }}><Icon name="check" size={18} stroke={2.8} /></span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'clamp(10px,.62vw,12px)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(42,29,20,.6)' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.colour, boxShadow: '0 0 0 2px rgba(42,29,20,.12)' }} />Team {t.number}
+                        {t.done && <span style={{ marginLeft: 'auto', color: '#178a4c', display: 'inline-flex', alignItems: 'center', gap: 4, letterSpacing: '.06em' }}><Icon name="check" size={14} stroke={3} />Done</span>}
                       </div>
-                      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', fontSize: 'clamp(12px,.9vw,16px)', fontWeight: 500, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}>
-                        {started ? t.problem : <span style={{ fontStyle: 'italic', color: 'rgba(42,29,20,.55)' }}>Brainstorming</span>}
-                      </div>
+                      {!started ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: 'clamp(12px,.85vw,15px)', color: 'rgba(42,29,20,.55)' }}>Brainstorming</div>
+                      ) : (
+                        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
+                          <div>
+                            <div style={cardLabel('#b2400f')}>Problem</div>
+                            <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(12.5px,.9vw,16px)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.problem}</div>
+                          </div>
+                          <div style={{ minHeight: 0, flex: 1, overflow: 'hidden', paddingTop: 8, borderTop: '1px solid rgba(42,29,20,.1)' }}>
+                            <div style={{ ...cardLabel('#8a6a00'), display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="star" size={11} stroke={2.4} /> Best solution</div>
+                            {t.steps.solutions
+                              ? <div style={{ fontSize: 'clamp(11.5px,.8vw,14.5px)', lineHeight: 1.38, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.solutions[t.best || 0]}</div>
+                              : <div style={{ fontSize: 'clamp(11.5px,.8vw,14px)', fontStyle: 'italic', color: 'rgba(42,29,20,.5)' }}>Writing solutions...</div>}
+                          </div>
+                        </div>
+                      )}
                       <StepTicks steps={t.steps} size={cardW < 215 ? 10 : 11} gap={cardW < 215 ? 5 : 7} nowrap light dim="rgba(42,29,20,.45)" />
                     </button>
                   );
@@ -2335,7 +2379,7 @@ function OwnItFacilitatorPanel({ oi, onConfirm }) {
                         <Icon name="chevron" size={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
                       </button>
                     )}
-                    {isOpen && <div style={{ padding: 12, borderRadius: 10, background: 'rgba(255,255,255,.03)', marginBottom: 10 }}><OwnItAnswers problem={t.problem} solutions={t.solutions} roi={t.roi} steps={t.steps} parts={['solutions', 'roi']} waitingText="Not yet" /></div>}
+                    {isOpen && <div style={{ padding: 12, borderRadius: 10, background: 'rgba(255,255,255,.03)', marginBottom: 10 }}><OwnItAnswers problem={t.problem} solutions={t.solutions} best={t.best} roi={t.roi} steps={t.steps} parts={['solutions', 'roi']} waitingText="Not yet" /></div>}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button className={`lc-btn ${onAir ? 'lc-btn-gold' : 'lc-btn-outline'}`} style={{ flex: 1, padding: '7px', fontSize: 12.5 }}
                         onClick={() => socket.emit('facilitator_ownit_spotlight', { teamNumber: onAir ? null : t.number })}>
@@ -2375,13 +2419,29 @@ function QrIcon({ size = 16 }) {
   );
 }
 
+// The QR button on every projector top bar, so anyone who got logged out can
+// scan again in any activity.
+function QrButton({ open, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
+      border: `1px solid ${open ? '#e8571a' : 'rgba(255,255,255,.2)'}`,
+      background: open ? 'rgba(232,87,26,.18)' : 'rgba(255,255,255,.04)',
+      color: '#f5f0e8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Inter',sans-serif",
+    }}>
+      <QrIcon size={15} /> {open ? 'Hide QR' : 'QR code'}
+    </button>
+  );
+}
+const JOIN_URL = `${window.location.origin}/`;
+
 // Docked to the right edge under the top bar, not centred, so the room can
 // still watch the nodes arrive while late joiners scan.
 function QrPanel({ open, onClose, joinUrl }) {
   if (!open) return null;
   return (
     <div className="lc-fadein" style={{
-      position: 'absolute', top: TOP_BAR_HEIGHT + 2, right: 0, width: QR_PANEL_WIDTH, zIndex: 20,
+      position: 'absolute', top: TOP_BAR_HEIGHT + 2, right: 0, width: QR_PANEL_WIDTH, zIndex: 40,
       padding: '22px 22px 20px', background: 'rgba(13,14,18,.94)', borderLeft: '1px solid rgba(232,87,26,.4)',
       borderBottom: '1px solid rgba(232,87,26,.4)', borderBottomLeftRadius: 18,
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
