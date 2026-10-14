@@ -576,6 +576,8 @@ const ICON_PATHS = {
   edit: <><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>,
   x: <path d="M6 6l12 12M18 6L6 18" />,
   download: <><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
+  expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
+  shrink: <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />,
   star: <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5z" />,
   bulb: <path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z" />,
   reflect: <><path d="M3.5 12a8.5 8.5 0 0114.6-5.9L20.5 8.5" /><path d="M20.5 3.5v5h-5" /><path d="M20.5 12a8.5 8.5 0 01-14.6 5.9L3.5 15.5" /><path d="M3.5 20.5v-5h5" /></>,
@@ -1157,8 +1159,9 @@ function PuzzleProjector({ board }) {
           )}
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 18 }}>
-          <span style={{ fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>Convey Meaning. Create Significance.</span>
+          {size.w >= 1500 && <span style={{ fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>Convey Meaning. Create Significance.</span>}
           <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
+          <FullscreenButton compact={size.w < 1500} />
         </div>
       </div>
       <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
@@ -2177,13 +2180,180 @@ function OwnItSpotlight({ team, kase, onClose }) {
   );
 }
 
-const cardLabel = (colour) => ({ fontSize: 'clamp(9px,.55vw,11px)', fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: colour, marginBottom: 3 });
+// Full screen for the projector laptop (hides the browser bars). F key too.
+function useFullscreen() {
+  const [on, setOn] = useState(!!document.fullscreenElement);
+  useEffect(() => {
+    const sync = () => setOn(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  const toggle = useCallback(() => {
+    try {
+      const p = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* not supported: ignore */ }
+  }, []);
+  return [on, toggle];
+}
+
+function FullscreenButton({ compact }) {
+  const [on, toggle] = useFullscreen();
+  return (
+    <button onClick={toggle} title={on ? 'Exit full screen (F)' : 'Full screen (F)'} style={{
+      display: 'flex', alignItems: 'center', gap: 8, padding: compact ? '8px 10px' : '8px 14px', borderRadius: 999,
+      border: `1px solid ${on ? '#e8571a' : 'rgba(255,255,255,.2)'}`, background: on ? 'rgba(232,87,26,.18)' : 'rgba(255,255,255,.04)',
+      color: '#f5f0e8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Inter',sans-serif",
+    }}>
+      <Icon name={on ? 'shrink' : 'expand'} size={15} />{compact ? null : (on ? 'Exit full screen' : 'Full screen')}
+    </button>
+  );
+}
+
+const SKIN = '#f7e6d3', INK = '#2a1d14';
+const upLabel = (size, colour) => ({ fontSize: size, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: colour, lineHeight: 1.2 });
+const clampLines = (n) => ({ display: '-webkit-box', WebkitLineClamp: n, WebkitBoxOrient: 'vertical', overflow: 'hidden' });
+
+// 3 small bars at the bottom of a card: Problem, Solutions, ROI.
+function StepBar({ steps = {}, f, showLabels, dark }) {
+  return (
+    <div style={{ display: 'flex', gap: f(5) }}>
+      {OWNIT_STEPS.map((s) => {
+        const on = !!steps[s.key];
+        return (
+          <div key={s.key} style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ height: Math.max(3, f(5)), borderRadius: 99, background: on ? '#22b363' : (dark ? 'rgba(255,255,255,.12)' : 'rgba(42,29,20,.14)') }} />
+            {showLabels && <div style={{ marginTop: f(4), fontSize: f(10.5), fontWeight: 700, color: on ? '#178a4c' : (dark ? 'rgba(245,240,232,.35)' : 'rgba(42,29,20,.4)'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Measures an element's height so a card can decide how many lines of each
+// solution fit, instead of cutting text off mid-line.
+function useBoxHeight() {
+  const [el, setEl] = useState(null);
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    if (!el) return undefined;
+    setH(el.getBoundingClientRect().height);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver((entries) => setH(entries[0].contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, h];
+}
+
+// One team on the board. `focus` = the bigger one-case view (all 3 solutions).
+function OwnItCard({ t, f, focus, onOpen, showLabels }) {
+  const [boxRef, boxH] = useBoxHeight();
+  const started = t.steps.problem;
+  const best = t.best || 0;
+  const head = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: f(6), whiteSpace: 'nowrap', minWidth: 0, flexShrink: 0 }}>
+      <span style={{ width: f(focus ? 12 : 9), height: f(focus ? 12 : 9), borderRadius: '50%', flexShrink: 0, background: t.colour, boxShadow: '0 0 0 2px rgba(0,0,0,.12)' }} />
+      <span style={{ ...upLabel(f(focus ? 15 : 11.5), started ? 'rgba(42,29,20,.65)' : 'rgba(245,240,232,.55)'), overflow: 'hidden', textOverflow: 'ellipsis' }}>Team {t.number}</span>
+      {t.done && (
+        <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: f(4), ...upLabel(f(focus ? 13 : 10.5), '#178a4c') }}>
+          <span style={{ width: f(focus ? 22 : 17), height: f(focus ? 22 : 17), borderRadius: '50%', background: '#22b363', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="check" size={f(focus ? 14 : 11)} stroke={3.2} /></span>
+          {(focus || showLabels) && 'Done'}
+        </span>
+      )}
+    </div>
+  );
+
+  if (!started) {
+    return (
+      <button onClick={onOpen} style={{
+        width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: '#f5f0e8',
+        padding: `${f(10)}px ${f(12)}px`, borderRadius: f(14), display: 'flex', flexDirection: 'column', gap: f(8),
+        background: 'rgba(255,255,255,.025)', border: '1.5px dashed rgba(255,255,255,.14)',
+      }}>
+        {head}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: f(8), fontStyle: 'italic', fontSize: f(focus ? 18 : 13), color: 'rgba(245,240,232,.4)' }}>
+          <span className="lc-pulse-dot" style={{ width: f(8), height: f(8), opacity: 0.6 }} /> Brainstorming
+        </div>
+        <StepBar steps={t.steps} f={f} showLabels={showLabels} dark />
+      </button>
+    );
+  }
+
+  // How many lines each solution gets, from the space actually left in the card.
+  const bestSize = focus ? 15 : 13, otherSize = focus ? 14 : 11.5;
+  const itemGap = f(focus ? 8 : 6), bestPad = f(6) * 2, labelH = f(focus ? 12 : 9.5) * 1.2 + itemGap;
+  const bestLH = f(bestSize) * 1.35, otherLH = f(otherSize) * 1.35;
+  const avail = Math.max(0, boxH - labelH);
+  let bestLines, otherLines;
+  if (focus) {
+    const total = Math.floor((avail - bestPad - itemGap * 2) / otherLH);
+    otherLines = Math.min(6, Math.floor(total / 3));
+    bestLines = Math.max(1, Math.min(7, otherLines >= 1 ? Math.floor((avail - bestPad - itemGap * 2 - otherLines * 2 * otherLH) / bestLH) : Math.floor((avail - bestPad) / bestLH)));
+  } else {
+    const bestCap = Math.max(1, Math.min(4, Math.floor((avail - bestPad) / bestLH)));
+    const rest = avail - bestPad - Math.min(bestCap, 3) * bestLH - itemGap * 2;
+    otherLines = Math.min(3, Math.floor(rest / 2 / otherLH));
+    bestLines = otherLines >= 1 ? Math.min(bestCap, 3) : bestCap;
+    if (otherLines >= 1) {
+      // give any spare room back to the best solution
+      const spare = rest - otherLines * 2 * otherLH;
+      bestLines = Math.min(5, bestLines + Math.max(0, Math.floor(spare / bestLH)));
+    }
+  }
+  if (!boxH) { bestLines = 3; otherLines = focus ? 2 : 0; }
+
+  const sol = (i, isBest, size, lines) => (
+    <div key={i} style={{
+      display: 'flex', gap: f(7), alignItems: 'flex-start', minWidth: 0, flexShrink: 0,
+      ...(isBest ? { padding: `${f(6)}px ${f(8)}px`, margin: `0 -${f(4)}px`, borderRadius: f(9), background: '#fbe7b0', boxShadow: 'inset 0 0 0 1.5px #e8b923' } : {}),
+    }}>
+      <span style={{
+        flexShrink: 0, width: f(size * 1.35), height: f(size * 1.35), borderRadius: f(6), display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: f(size * 0.8), fontWeight: 800, background: isBest ? '#e8b923' : 'rgba(42,29,20,.1)', color: isBest ? INK : 'rgba(42,29,20,.6)',
+      }}>{isBest ? <Icon name="star" size={f(size * 0.85)} stroke={2.6} /> : i + 1}</span>
+      <span style={{ fontSize: f(size), lineHeight: 1.35, minWidth: 0, fontWeight: isBest ? 600 : 400, color: isBest ? INK : 'rgba(42,29,20,.75)', ...clampLines(lines) }}>{t.solutions[i]}</span>
+    </div>
+  );
+  const others = [0, 1, 2].filter((i) => i !== best);
+
+  return (
+    <button onClick={onOpen} className={t.done ? 'lc-card-done' : ''} style={{
+      width: '100%', height: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: INK,
+      padding: `${f(focus ? 14 : 10)}px ${f(focus ? 16 : 12)}px`, borderRadius: f(14), display: 'flex', flexDirection: 'column', gap: f(focus ? 10 : 7),
+      background: SKIN, border: `2px solid ${t.done ? '#2ecc71' : 'rgba(42,29,20,.12)'}`, overflow: 'hidden', minWidth: 0,
+    }}>
+      {head}
+      <div style={{ minWidth: 0, flexShrink: 0 }}>
+        <div style={{ ...upLabel(f(focus ? 12 : 9.5), '#b2400f'), marginBottom: f(3) }}>Problem</div>
+        <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: f(focus ? 20 : 15), lineHeight: 1.25, ...clampLines(3) }}>{t.problem}</div>
+      </div>
+      <div ref={boxRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: itemGap, overflow: 'hidden' }}>
+        <div style={{ ...upLabel(f(focus ? 12 : 9.5), '#8a6a00'), flexShrink: 0 }}>{focus ? '3 solutions' : (otherLines >= 1 ? 'Solutions (best first)' : 'Best solution')}</div>
+        {!t.steps.solutions ? (
+          <div style={{ fontSize: f(focus ? 16 : 12.5), fontStyle: 'italic', color: 'rgba(42,29,20,.45)' }}>Writing solutions...</div>
+        ) : focus ? (
+          [0, 1, 2].filter((i) => i === best || otherLines >= 1).map((i) => sol(i, i === best, i === best ? bestSize : otherSize, i === best ? bestLines : otherLines))
+        ) : (
+          <>
+            {sol(best, true, bestSize, bestLines)}
+            {otherLines >= 1 && others.map((i) => sol(i, false, otherSize, otherLines))}
+          </>
+        )}
+      </div>
+      <StepBar steps={t.steps} f={f} showLabels={showLabels} />
+    </button>
+  );
+}
 
 function OwnItProjector({ board }) {
   const [qrOpen, setQrOpen] = useState(false);
+  const [view, setView] = useState('all'); // 'all' | 1 | 2 | 3 (one case at a time)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [localOpen, setLocalOpen] = useState(null);
   const [dismissed, setDismissed] = useState(null);
+  const [, toggleFs] = useFullscreen();
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener('resize', onResize);
@@ -2191,98 +2361,140 @@ function OwnItProjector({ board }) {
   }, []);
   const spotlight = board ? board.spotlight : null;
   useEffect(() => { setDismissed(null); setLocalOpen(null); }, [spotlight]);
+  // The facilitator console picks what the projector shows; the tabs and keys
+  // here still work locally until the console changes it again.
+  const remoteView = board ? (board.view || 'all') : 'all';
+  useEffect(() => { setView(remoteView); }, [remoteView]);
   const openNumber = localOpen != null ? localOpen : (spotlight != null && spotlight !== dismissed ? spotlight : null);
+
+  // Keys on the projector laptop: Esc closes a team, 0 = all cases, 1/2/3 = one case, F = full screen.
   useEffect(() => {
-    if (openNumber == null) return;
-    const onKey = (e) => { if (e.key === 'Escape') { setLocalOpen(null); setDismissed(spotlight); } };
+    const onKey = (e) => {
+      if (e.key === 'Escape' && openNumber != null) { setLocalOpen(null); setDismissed(spotlight); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '0' || e.key.toLowerCase() === 'a') setView('all');
+      else if (['1', '2', '3'].includes(e.key)) setView(Number(e.key));
+      else if (e.key.toLowerCase() === 'f') toggleFs();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openNumber, spotlight]);
+  }, [openNumber, spotlight, toggleFs]);
 
-  const pad = 26, labelW = Math.min(250, Math.max(190, size.w * 0.13)), gap = 12;
+  // Everything scales with the screen, designed at 1920 x 1080.
+  const k = Math.min(size.w / 1920, size.h / 1080);
+  const fk = Math.max(0.74, Math.min(1.5, k));
+  const f = (n) => Math.round(n * fk * 10) / 10;
+  const compactBar = size.w < 1500;
   const cases = board ? board.cases : [];
   const rows = cases.map((c) => ({ c, teams: board.teams.filter((t) => t.caseId === c.id) }));
-  const maxCols = Math.max(1, ...rows.map((r) => r.teams.length));
-  const cardW = Math.min(250, (size.w - pad * 2 - labelW - 24 - gap * (maxCols - 1)) / maxCols);
-  const rowH = (size.h - TOP_BAR_HEIGHT - pad * 2 - gap * 2) / 3;
   const openTeam = openNumber != null && board ? board.teams.find((t) => t.number === openNumber) : null;
   const openCase = openTeam ? cases.find((c) => c.id === openTeam.caseId) : null;
+
+  const pad = Math.round(16 * fk), gap = Math.round(10 * fk);
+  const areaW = size.w - pad * 2, areaH = size.h - TOP_BAR_HEIGHT - pad * 2;
+
+  // ALL view geometry
+  const labelW = Math.round(Math.max(118, 205 * fk));
+  const maxCols = Math.max(1, ...rows.map((r) => r.teams.length));
+  const rowPad = Math.round(8 * fk);
+  const rowH = (areaH - gap * 2) / 3;
+  const cardW = (areaW - labelW - rowPad * 2 - gap * maxCols) / maxCols;
+  const cardH = rowH - rowPad * 2;
+  const showLabels = cardW >= 175 * fk;
+
+  const focusRow = view !== 'all' ? rows.find((r) => r.c.id === view) : null;
+
+  const tab = (key, label, icon, colour) => {
+    const active = view === key;
+    return (
+      <button key={String(key)} onClick={() => setView(key)} title={key === 'all' ? 'All cases (0)' : `${label} (${key})`} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: compactBar ? '6px 9px' : '6px 12px', borderRadius: 999, cursor: 'pointer',
+        border: 'none', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', fontFamily: "'Inter',sans-serif",
+        background: active ? (colour || '#e8571a') : 'transparent', color: active ? '#120d09' : 'rgba(245,240,232,.7)',
+      }}>
+        {icon && <Icon name={icon} size={14} stroke={2.2} />}{(!compactBar || key === 'all') && label}
+      </button>
+    );
+  };
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: 'radial-gradient(ellipse at top, #1a1410 0%, #07080b 60%)', color: '#f5f0e8', fontFamily: "'Inter',sans-serif" }}>
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: compactBar ? '0 16px' : '0 28px',
         background: '#0d0e12', borderBottom: '2px solid #e8571a',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-          <img src="/logo.png" alt="Carnelian" style={{ height: 38 }} />
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16 }}>Own It</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          <img src="/logo.png" alt="Carnelian" style={{ height: compactBar ? 32 : 38 }} />
+          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' }}>Own It</span>
+          <div style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: 'rgba(255,255,255,.06)', marginLeft: 6 }}>
+            {tab('all', 'All cases')}
+            {cases.map((c) => tab(c.id, c.pillar, (PILLAR_META[c.pillar] || {}).icon, (PILLAR_META[c.pillar] || {}).colour))}
+          </div>
         </div>
-        <div style={{ flex: 1, textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>
+        <div style={{ textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>
           <span style={{ color: '#e8571a' }}>{board ? board.completeCount : 0}</span>
-          <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 20} teams complete</span>
+          <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 20} {compactBar ? 'done' : 'teams complete'}</span>
         </div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 18 }}>
-          <LeapBrand />
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: compactBar ? 10 : 16 }}>
+          <LeapBrand height={compactBar ? 28 : 34} />
           <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
+          <FullscreenButton compact={compactBar} />
         </div>
       </div>
       <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
 
-      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: pad, bottom: pad, display: 'flex', flexDirection: 'column', gap }}>
+      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, width: areaW, height: areaH }}>
         {!board && <div style={{ margin: 'auto', color: 'rgba(245,240,232,.5)' }}>Loading...</div>}
-        {rows.map(({ c, teams: list }) => {
+
+        {view === 'all' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap, height: '100%' }}>
+            {rows.map(({ c, teams: list }) => {
+              const pm = PILLAR_META[c.pillar] || {};
+              const done = list.filter((t) => t.done).length;
+              return (
+                <div key={c.id} style={{ height: rowH, display: 'flex', gap, alignItems: 'stretch', padding: rowPad, borderRadius: f(16), background: `linear-gradient(90deg, ${pm.colour}1c, rgba(255,255,255,.015) 30%)`, border: '1px solid rgba(255,255,255,.05)' }}>
+                  <button onClick={() => setView(c.id)} title={`Show only ${c.name}`} style={{ width: labelW - rowPad, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: `0 ${f(8)}px 0 ${f(14)}px`, borderLeft: `${Math.max(3, f(4))}px solid ${pm.colour}`, borderTop: 'none', borderRight: 'none', borderBottom: 'none', background: 'transparent', color: '#f5f0e8', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: f(7), color: pm.colour, ...upLabel(f(13), pm.colour) }}>
+                      <Icon name={pm.icon} size={f(18)} stroke={2.2} />{c.pillar}
+                    </div>
+                    <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: f(21), lineHeight: 1.15, margin: `${f(7)}px 0 ${f(5)}px` }}>{c.name}</div>
+                    <div style={{ fontSize: f(12.5), color: 'rgba(245,240,232,.55)' }}><b style={{ color: '#2ecc71' }}>{done}</b> of {list.length} complete</div>
+                  </button>
+                  {list.map((t) => (
+                    <div key={t.number} style={{ width: cardW, height: cardH, flexShrink: 0 }}>
+                      <OwnItCard t={t} f={f} showLabels={showLabels} onOpen={() => setLocalOpen(t.number)} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {focusRow && (() => {
+          const { c, teams: list } = focusRow;
           const pm = PILLAR_META[c.pillar] || {};
           const done = list.filter((t) => t.done).length;
+          const cols = list.length <= 4 ? Math.max(1, list.length) : Math.ceil(list.length / 2);
+          const gridRows = list.length <= 4 ? 1 : 2;
+          const bandH = Math.round(54 * fk);
+          const cw = (areaW - gap * (cols - 1)) / cols;
+          const ch = (areaH - bandH - gap - gap * (gridRows - 1)) / gridRows;
           return (
-            <div key={c.id} style={{ height: rowH, display: 'flex', gap: 24, alignItems: 'stretch', padding: '12px 12px 12px 0', borderRadius: 18, background: `linear-gradient(90deg, ${pm.colour}14, rgba(255,255,255,.015) 40%)`, border: '1px solid rgba(255,255,255,.05)' }}>
-              <div style={{ width: labelW, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 20, borderLeft: `4px solid ${pm.colour}`, borderRadius: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9, color: pm.colour, fontWeight: 800, fontSize: 'clamp(13px,1vw,18px)', letterSpacing: '.12em', textTransform: 'uppercase' }}>
-                  <Icon name={pm.icon} size={22} stroke={2} />{c.pillar}
-                </div>
-                <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(16px,1.35vw,25px)', lineHeight: 1.2, margin: '8px 0 6px' }}>{c.name}</div>
-                <div style={{ fontSize: 13, color: 'rgba(245,240,232,.5)' }}>{done} of {list.length} complete</div>
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap }}>
+              <div style={{ height: bandH, flexShrink: 0, display: 'flex', alignItems: 'center', gap: f(14), padding: `0 ${f(16)}px`, borderRadius: f(14), borderLeft: `${Math.max(3, f(5))}px solid ${pm.colour}`, background: `linear-gradient(90deg, ${pm.colour}26, rgba(255,255,255,.02) 60%)` }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: f(8), ...upLabel(f(15), pm.colour) }}><Icon name={pm.icon} size={f(20)} stroke={2.2} />{c.pillar}</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: f(25) }}>{c.name}</span>
+                <span style={{ fontSize: f(14), color: 'rgba(245,240,232,.6)' }}>{c.pillarDetail}</span>
+                <span style={{ marginLeft: 'auto', fontSize: f(15), color: 'rgba(245,240,232,.7)' }}><b style={{ color: '#2ecc71' }}>{done}</b> of {list.length} complete</span>
               </div>
-              <div style={{ flex: 1, display: 'flex', gap, alignItems: 'stretch', minWidth: 0 }}>
-                {list.map((t) => {
-                  const started = t.steps.problem;
-                  return (
-                    <button key={t.number} onClick={() => setLocalOpen(t.number)} className={t.done ? 'lc-card-done' : ''} style={{
-                      width: cardW, flexShrink: 0, textAlign: 'left', cursor: 'pointer', color: '#2a1d14', font: 'inherit',
-                      padding: '12px 14px', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 9,
-                      background: started ? '#f7e6d3' : '#efe2d4',
-                      border: `2px solid ${t.done ? '#2ecc71' : 'rgba(42,29,20,.14)'}`,
-                      opacity: started ? 1 : 0.55, transition: 'opacity .4s, border-color .4s, background .4s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'clamp(10px,.62vw,12px)', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(42,29,20,.6)' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.colour, boxShadow: '0 0 0 2px rgba(42,29,20,.12)' }} />Team {t.number}
-                        {t.done && <span style={{ marginLeft: 'auto', color: '#178a4c', display: 'inline-flex', alignItems: 'center', gap: 4, letterSpacing: '.06em' }}><Icon name="check" size={14} stroke={3} />Done</span>}
-                      </div>
-                      {!started ? (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', fontSize: 'clamp(12px,.85vw,15px)', color: 'rgba(42,29,20,.55)' }}>Brainstorming</div>
-                      ) : (
-                        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-                          <div>
-                            <div style={cardLabel('#b2400f')}>Problem</div>
-                            <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(12.5px,.9vw,16px)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.problem}</div>
-                          </div>
-                          <div style={{ minHeight: 0, flex: 1, overflow: 'hidden', paddingTop: 8, borderTop: '1px solid rgba(42,29,20,.1)' }}>
-                            <div style={{ ...cardLabel('#8a6a00'), display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="star" size={11} stroke={2.4} /> Best solution</div>
-                            {t.steps.solutions
-                              ? <div style={{ fontSize: 'clamp(11.5px,.8vw,14.5px)', lineHeight: 1.38, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.solutions[t.best || 0]}</div>
-                              : <div style={{ fontSize: 'clamp(11.5px,.8vw,14px)', fontStyle: 'italic', color: 'rgba(42,29,20,.5)' }}>Writing solutions...</div>}
-                          </div>
-                        </div>
-                      )}
-                      <StepTicks steps={t.steps} size={cardW < 215 ? 10 : 11} gap={cardW < 215 ? 5 : 7} nowrap light dim="rgba(42,29,20,.45)" />
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, ${cw}px)`, gridAutoRows: `${ch}px`, gap }}>
+                {list.map((t) => <OwnItCard key={t.number} t={t} f={f} focus showLabels onOpen={() => setLocalOpen(t.number)} />)}
               </div>
             </div>
           );
-        })}
+        })()}
       </div>
 
       {openTeam && <OwnItSpotlight team={openTeam} kase={openCase} onClose={() => { setLocalOpen(null); setDismissed(spotlight); }} />}
@@ -2315,6 +2527,23 @@ function OwnItFacilitatorPanel({ oi, onConfirm }) {
       </div>
 
       <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
+        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 12px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Projector shows</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+          {[{ id: 'all', label: 'All cases' }, ...oi.cases.map((c) => ({ id: c.id, label: `${c.pillar}: ${c.name}`, pillar: c.pillar }))].map((v) => {
+            const active = (oi.view || 'all') === v.id;
+            const pm = v.pillar ? PILLAR_META[v.pillar] : null;
+            const col = pm ? pm.colour : '#e8571a';
+            return (
+              <button key={String(v.id)} onClick={() => socket.emit('facilitator_ownit_view', { view: v.id })} style={{
+                flex: '1 1 180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+                border: `1.5px solid ${active ? col : 'rgba(255,255,255,.12)'}`, background: active ? `${col}26` : 'rgba(255,255,255,.03)', color: active ? col : 'var(--ink)',
+              }}>
+                {pm && <Icon name={pm.icon} size={16} stroke={2.2} />}{v.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="lc-btn-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button className={`lc-btn ${allDone ? 'lc-btn-gold' : 'lc-btn-outline'}`} style={{ flex: '1 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} disabled={busy}
             onClick={() => (allDone ? downloadCards() : onConfirm({
@@ -2338,7 +2567,7 @@ function OwnItFacilitatorPanel({ oi, onConfirm }) {
           })}>Restart Own It</button>
         </div>
         <p className="lc-faint" style={{ marginBottom: 0 }}>
-          Key: ticks show what each team has submitted (Problem, Solutions, ROI). <b>Download all cards</b> saves one PDF page per team with its answers and member names. A team is complete once its ROI answer is in, and its answers lock. <b>Reopen</b> unlocks a complete team so its captain can change answers. <b>Show on projector</b> opens that team full screen for the debrief. Green dot online, grey offline. Offline captains are replaced automatically after about 30 seconds.
+          Key: ticks show what each team has submitted (Problem, Solutions, ROI). <b>Download all cards</b> saves one PDF page per team with its answers and member names. A team is complete once its ROI answer is in, and its answers lock. <b>Reopen</b> unlocks a complete team so its captain can change answers. <b>Projector shows</b> switches the projector between all 20 teams and one case at a time. <b>Show on projector</b> opens that team full screen for the debrief. Green dot online, grey offline. Offline captains are replaced automatically after about 30 seconds.
         </p>
       </div>
 
@@ -3035,6 +3264,7 @@ function ProjectorView() {
             }}>
               <QrIcon size={15} /> {qrOpen ? 'Hide QR' : 'QR code'}
             </button>
+            <FullscreenButton compact={window.innerWidth < 1500} />
           </div>
         </div>
       )}
