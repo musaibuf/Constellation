@@ -399,7 +399,7 @@ function unlockDelivery(d, explained, byFacilitator) {
   d.byFacilitator = !!byFacilitator;
   const piece = puzzle.pieces[d.to];
   if (piece) piece.quarters[d.quarter] = true;
-  addFeed(`Team ${d.from} helped Team ${d.to} unlock a piece`, d.from, d.to);
+  addFeed(`Team ${d.to} unlocked part of their piece`, d.from, d.to);
   openNextRound(d.from);
   if (puzzle.deliveries.every(x => x.status === 'unlocked')) completePuzzle();
 }
@@ -517,7 +517,8 @@ function puzzleStateFor(pid) {
     .filter(d => d.to === n)
     .sort((a, b) => a.round - b.round)
     .map(d => ({
-      id: d.id, round: d.round, fromTeam: d.from, fromColour: colourOf(d.from),
+      // Which team is bringing each code stays a secret from the receiving team.
+      id: d.id, round: d.round,
       quarter: d.quarter,
       status: d.status === 'pending' || d.status === 'answering' ? 'waiting' : d.status,
     }));
@@ -811,7 +812,9 @@ function ownitStateFor(pid) {
     isCaptain: t.captainId === pid,
     captainName: nameOf(t.captainId),
     captainOnline: t.captainId ? isOnline(t.captainId) : false,
-    case: caseById(t.caseId),
+    // Phones get the scenario number, title and text only: never the pillar
+    // (Loved / Trusted / Connected) or what the case tests.
+    case: (({ id, name, text, placeholder }) => ({ id, name, text, placeholder }))(caseById(t.caseId)),
     problem: t.problem,
     solution: t.solution,
     steps: { ...t.steps },
