@@ -711,7 +711,6 @@ function PuzzleParticipant({ team, teammates = [], participantId }) {
   const [sent, setSent] = useState({});       // "deliveryId:position" -> true once emitted
   const [code, setCode] = useState('');
   const [flash, setFlash] = useState(null);
-  const [showKey, setShowKey] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
   const errTimer = useRef(null);
 
@@ -958,9 +957,9 @@ function PuzzleParticipant({ team, teammates = [], participantId }) {
         <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
           <SectionTitle icon="key">Codes coming to us</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-            {me.incoming.map((d) => (
+            {me.incoming.map((d, i) => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,.035)', opacity: d.status === 'unlocked' ? 0.55 : 1 }}>
-                <TeamTag number={d.fromTeam} colour={d.fromColour} />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700 }}><Icon name="key" size={15} style={{ color: 'var(--gold)' }} />Code {i + 1}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: d.status === 'unlocked' ? '#3ddc84' : d.status === 'ready' ? 'var(--gold)' : 'var(--ink-faint)' }}>
                   {d.status === 'unlocked' && <><Icon name="check" size={15} stroke={2.4} /> Unlocked</>}
                   {d.status === 'ready' && <><Icon name="send" size={14} /> On the way</>}
@@ -973,7 +972,7 @@ function PuzzleParticipant({ team, teammates = [], participantId }) {
           {!me.isCaptain && (
             <p style={{ margin: 0, color: 'var(--ink-dim)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <Icon name="captain" size={16} style={{ marginTop: 2, color: 'var(--gold)' }} />
-              <span>{me.captainName || 'Your captain'} enters codes for your team.{me.captainOnline ? '' : ' If they stay offline, the role moves to someone else automatically.'} When a team arrives with a code, bring them to {me.captainName || 'your captain'}.</span>
+              <span>{me.captainName || 'Your captain'} enters codes for your team.{me.captainOnline ? '' : ' If they stay offline, the role moves to someone else automatically.'} Codes can come from any team, so when someone arrives with a code, bring them to {me.captainName || 'your captain'}.</span>
             </p>
           )}
 
@@ -1002,27 +1001,6 @@ function PuzzleParticipant({ team, teammates = [], participantId }) {
 
         </div>
       )}
-
-      {/* Behaviour key */}
-      <div className="lc-card" style={{ padding: '14px 18px', marginBottom: 14 }}>
-        <button onClick={() => setShowKey((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 600 }}>
-          <Icon name="puzzle" size={16} style={{ color: 'var(--gold)' }} /> The 5 behaviours
-          <Icon name="chevron" size={16} style={{ marginLeft: 'auto', transform: showKey ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-        </button>
-        {showKey && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-            {BEHAVIOR_LIST.map((b) => (
-              <div key={b} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <BehaviorIcon behavior={b} size={18} />
-                <div>
-                  <div style={{ fontWeight: 700, color: BEHAVIOR_META[b].colour }}>{b}</div>
-                  <div style={{ fontSize: 13.5, color: 'var(--ink-dim)', lineHeight: 1.45 }}>{(me.definitions || {})[b]}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Team */}
       <div className="lc-card" style={{ padding: '14px 18px' }}>
@@ -1613,7 +1591,7 @@ async function drawOwnItCasePage(kase, list, membersOf, pageNo, pageCount) {
   ctx.fillStyle = pm.colour; ctx.fillRect(0, 0, W, 16);
 
   // Header
-  spacedLabel(ctx, `Own It  |  ${kase.pillar}`, M, 78, pm.colour, 24);
+  spacedLabel(ctx, `Own It  |  Scenario ${kase.id}  |  ${kase.pillar}`, M, 78, pm.colour, 24);
   ctx.fillStyle = ink; ctx.font = '800 54px Poppins, sans-serif'; ctx.fillText(kase.name, M, 140);
   ctx.fillStyle = dim; ctx.font = '400 24px Inter, sans-serif';
   const doneN = list.filter((t) => t.done).length;
@@ -1685,11 +1663,16 @@ const OWNIT_STEPS = [
 ];
 const cleanText = (v) => String(v || '').replace(/\s+/g, ' ').trim();
 
-function PillarBadge({ pillar, size = 13, style }) {
-  const m = PILLAR_META[pillar] || { colour: '#888', icon: 'flag' };
+// Scenario 1, 2, 3 keep their colour and symbol, but the pillar names
+// (Loved / Trusted / Connected) are never shown on screen.
+const CASE_META = { 1: PILLAR_META.Loved, 2: PILLAR_META.Trusted, 3: PILLAR_META.Connected };
+const metaOf = (c) => (c && (PILLAR_META[c.pillar] || CASE_META[c.id])) || { colour: '#888', icon: 'flag' };
+
+function ScenarioBadge({ c, size = 13, icon = true, style }) {
+  const m = metaOf(c);
   return (
     <span className="lc-badge" style={{ background: `${m.colour}1f`, color: m.colour, borderColor: `${m.colour}55`, ...style }}>
-      <Icon name={m.icon} size={size} /> {pillar}
+      {icon && <Icon name={m.icon} size={size} />} Scenario {c.id}
     </span>
   );
 }
@@ -1873,7 +1856,7 @@ function OwnItParticipant({ team, participantId }) {
   }
 
   const c = me.case;
-  const pm = PILLAR_META[c.pillar] || {};
+  const pm = metaOf(c);
   const lim = me.limits || { problem: 80, text: 300 };
   const isCap = me.isCaptain;
   const stepCard = (n, title, enabled, children, extra) => (
@@ -1901,8 +1884,7 @@ function OwnItParticipant({ team, participantId }) {
       {/* The case */}
       <div className="lc-card" style={{ padding: 18, marginBottom: 14, border: `1px solid ${pm.colour}55` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <PillarBadge pillar={c.pillar} />
-          <span className="lc-faint" style={{ margin: 0, fontSize: 12.5 }}>{c.pillarDetail}</span>
+          <ScenarioBadge c={c} icon={false} />
         </div>
         <button onClick={() => setShowCase((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
           <span className="lc-h2" style={{ margin: 0, fontSize: 21, flex: 1 }}>{c.name}</span>
@@ -1910,8 +1892,7 @@ function OwnItParticipant({ team, participantId }) {
         </button>
         {showCase && (
           <div className="lc-fadein">
-            <p style={{ fontSize: 15.5, lineHeight: 1.55, margin: '12px 0 12px' }}>{c.text}</p>
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--ink-dim)', lineHeight: 1.45 }}><b style={{ color: pm.colour }}>Tests:</b> {c.tests}</p>
+            <p style={{ fontSize: 15.5, lineHeight: 1.55, margin: '12px 0 0' }}>{c.text}</p>
           </div>
         )}
       </div>
@@ -2034,7 +2015,7 @@ function LeapBrand({ height = 34 }) {
 }
 
 function OwnItSpotlight({ team, kase, onClose }) {
-  const pm = PILLAR_META[kase && kase.pillar] || {};
+  const pm = metaOf(kase);
   const label = { fontSize: 'clamp(12px,.95vw,17px)', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(232,185,35,.9)', fontWeight: 700, marginBottom: 12 };
   return (
     <div className="lc-fadein" onClick={onClose} style={{
@@ -2048,7 +2029,7 @@ function OwnItSpotlight({ team, kase, onClose }) {
           </span>
           {kase && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 'clamp(16px,1.3vw,24px)', color: pm.colour, fontWeight: 700 }}>
-              <Icon name={pm.icon} size={24} /> {kase.pillar} <span style={{ color: 'rgba(245,240,232,.6)', fontWeight: 500 }}>&middot; {kase.name}</span>
+              <Icon name={pm.icon} size={24} /> Scenario {kase.id} <span style={{ color: 'rgba(245,240,232,.6)', fontWeight: 500 }}>&middot; {kase.name}</span>
             </span>
           )}
           <span style={{ marginLeft: 'auto', color: 'rgba(245,240,232,.4)', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 }}><Icon name="x" size={18} /> Close</span>
@@ -2163,7 +2144,7 @@ function OwnItRow({ t, wide, onOpen }) {
 // One scenario = one card. Teams with answers get all the space; teams that
 // have not sent anything yet wait in a slim strip at the bottom.
 function OwnItCaseCard({ c, list, f, wide, onOpen, onPick }) {
-  const pm = PILLAR_META[c.pillar] || {};
+  const pm = metaOf(c);
   const done = list.filter((t) => t.done).length;
   const allDone = list.length > 0 && done === list.length;
   const shown = list.filter((t) => t.steps.problem);
@@ -2177,9 +2158,8 @@ function OwnItCaseCard({ c, list, f, wide, onOpen, onPick }) {
     }}>
       <div onClick={onPick} style={{ flexShrink: 0, cursor: onPick ? 'pointer' : 'default', background: `linear-gradient(135deg, ${pm.colour}, ${pm.colour}cc)`, color: '#120d09' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: f(12), padding: `${f(wide ? 12 : 10)}px ${f(16)}px` }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: f(6), ...upLabel(f(wide ? 13 : 11.5), 'rgba(18,13,9,.8)'), whiteSpace: 'nowrap' }}><Icon name={pm.icon} size={f(wide ? 17 : 15)} stroke={2.4} />{c.pillar}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: f(6), ...upLabel(f(wide ? 13 : 11.5), 'rgba(18,13,9,.8)'), whiteSpace: 'nowrap' }}><Icon name={pm.icon} size={f(wide ? 17 : 15)} stroke={2.4} />Scenario {c.id}</span>
           <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: f(wide ? 26 : 21), lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.name}</span>
-          {wide && <span style={{ fontSize: f(14), fontWeight: 600, color: 'rgba(18,13,9,.65)', whiteSpace: 'nowrap' }}>{c.pillarDetail}</span>}
           <span style={{ marginLeft: 'auto', fontSize: f(wide ? 15 : 13), fontWeight: 700, color: 'rgba(18,13,9,.75)', whiteSpace: 'nowrap' }}>{done} of {list.length} complete</span>
         </div>
         <div style={{ height: Math.max(3, f(4)), background: 'rgba(18,13,9,.18)' }}>
@@ -2284,7 +2264,7 @@ function OwnItProjector({ board }) {
           <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' }}>Own It</span>
           <div style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: 'rgba(255,255,255,.06)', marginLeft: 6 }}>
             {tab('all', 'All cases')}
-            {cases.map((c) => tab(c.id, c.pillar, (PILLAR_META[c.pillar] || {}).icon, (PILLAR_META[c.pillar] || {}).colour))}
+            {cases.map((c) => tab(c.id, `Scenario ${c.id}`, metaOf(c).icon, metaOf(c).colour))}
           </div>
         </div>
         <div style={{ textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>
@@ -2341,9 +2321,9 @@ function OwnItFacilitatorPanel({ oi, onConfirm }) {
       <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
         <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 12px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Projector shows</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          {[{ id: 'all', label: 'All 3 cards' }, ...oi.cases.map((c) => ({ id: c.id, label: `${c.pillar}: ${c.name}`, pillar: c.pillar }))].map((v) => {
+          {[{ id: 'all', label: 'All 3 cards' }, ...oi.cases.map((c) => ({ id: c.id, label: `Scenario ${c.id}: ${c.name}`, c }))].map((v) => {
             const active = (oi.view || 'all') === v.id;
-            const pm = v.pillar ? PILLAR_META[v.pillar] : null;
+            const pm = v.c ? metaOf(v.c) : null;
             const col = pm ? pm.colour : '#e8571a';
             return (
               <button key={String(v.id)} onClick={() => socket.emit('facilitator_ownit_view', { view: v.id })} style={{
@@ -2388,7 +2368,7 @@ function OwnItFacilitatorPanel({ oi, onConfirm }) {
         return (
           <div key={c.id} className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-              <PillarBadge pillar={c.pillar} />
+              <ScenarioBadge c={c} />
               <span style={{ fontWeight: 700, fontSize: 17 }}>{c.name}</span>
               <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--ink-dim)' }}>{list.filter((t) => t.done).length} of {list.length} complete</span>
             </div>
