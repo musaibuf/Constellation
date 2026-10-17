@@ -1470,16 +1470,16 @@ function fillRound(ctx, x, y, w, h, r, fill, stroke, lineW = 2) {
 }
 
 async function drawHeaderLogos(ctx, rightX, y, h = 46) {
-  const [carnelian, leap] = await Promise.all([loadImage('/logo.png'), loadImage('/leap-logo.png')]);
+  const [carnelian, leap] = await Promise.all([loadImage('/logo.png'), loadImage('/own-the-next-logo.png')]);
   let x = rightX;
   if (leap) { const w = (leap.naturalWidth / leap.naturalHeight) * h; x -= w; ctx.drawImage(leap, x, y, w, h); x -= 28; }
   else {
     ctx.font = '800 30px Poppins, sans-serif'; ctx.textAlign = 'right';
-    ctx.fillStyle = '#2a1d14'; const leapW = ctx.measureText('LEAP').width;
-    ctx.fillStyle = '#e8571a'; ctx.fillText('LEAP', x, y + h * 0.72);
-    ctx.fillStyle = '#2a1d14'; ctx.fillText('Take the ', x - leapW, y + h * 0.72);
+    ctx.fillStyle = '#2a1d14'; const leapW = ctx.measureText('Next').width;
+    ctx.fillStyle = '#e8571a'; ctx.fillText('Next', x, y + h * 0.72);
+    ctx.fillStyle = '#2a1d14'; ctx.fillText('Own the ', x - leapW, y + h * 0.72);
     ctx.textAlign = 'left';
-    x -= ctx.measureText('Take the LEAP').width + 28;
+    x -= ctx.measureText('Own the Next').width + 28;
   }
   if (carnelian) { const w = (carnelian.naturalWidth / carnelian.naturalHeight) * h; ctx.drawImage(carnelian, x - w, y, w, h); }
 }
@@ -2004,12 +2004,12 @@ function OwnItParticipant({ team, participantId }) {
 /* ============================================================
    OWN IT: PROJECTOR
    ============================================================ */
-function LeapBrand({ height = 34 }) {
+function EventBrand({ height = 34 }) {
   const [img, setImg] = useState(true);
-  if (img) return <img src="/leap-logo.png" alt="Take the LEAP" style={{ height }} onError={() => setImg(false)} />;
+  if (img) return <img src="/own-the-next-logo.png" alt="Own the Next" style={{ height }} onError={() => setImg(false)} />;
   return (
     <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>
-      Take the <span style={{ color: '#e8571a' }}>LEAP</span>
+      Own the <span style={{ color: '#e8571a' }}>Next</span>
     </span>
   );
 }
@@ -2272,7 +2272,7 @@ function OwnItProjector({ board }) {
           <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 20} {compactBar ? 'done' : 'teams complete'}</span>
         </div>
         <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: compactBar ? 10 : 16 }}>
-          <LeapBrand height={compactBar ? 28 : 34} />
+          <EventBrand height={compactBar ? 28 : 34} />
           <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
           <FullscreenButton compact={compactBar} />
         </div>
