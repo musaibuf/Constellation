@@ -681,9 +681,8 @@ setInterval(() => {
 // Each team gets one of 3 cases (shuffled, 7 / 7 / 6 for 20 teams). The team
 // brainstorms at its own pace, then its captain submits, in order:
 //   1. a one-line problem statement (max 80 characters)
-//   2. three solutions
-//   3. how the solution enhances ROI = money in your till + love
-// Any step can be changed until the ROI answer is in; then the team is done
+//   2. their solution (max 300 characters)
+// The problem can be changed until the solution is in; then the team is done
 // and locked (the facilitator can reopen it). Teams work independently.
 const OWNIT_CASES = [
   {
@@ -716,7 +715,6 @@ const OWNIT_CASES = [
 ];
 const OWNIT_PROBLEM_MAX = 80;
 const OWNIT_TEXT_MAX = 300;
-const OWNIT_ROI_QUESTION = 'How does your solution enhance ROI = money in your till + love?';
 
 let ownit = null; // { startedAt, inPlay, teams: { [n]: {...} }, spotlight }
 
@@ -735,8 +733,8 @@ function startOwnIt() {
     ownit.teams[n] = {
       caseId: caseOrder[i % 3],
       captainId: prevCap && teamMembers(n).includes(prevCap) && isOnline(prevCap) ? prevCap : pickOwnItCaptain(n),
-      problem: '', solutions: ['', '', ''], best: 0, roi: '',
-      steps: { problem: false, solutions: false, roi: false },
+      problem: '', solution: '',
+      steps: { problem: false, solution: false },
       done: false, doneAt: null, updatedAt: null,
     };
   });
@@ -763,9 +761,7 @@ function ownitTeamPublic(n) {
     colour: team.colour,
     caseId: t.caseId,
     problem: t.steps.problem ? t.problem : '',
-    solutions: t.steps.solutions ? t.solutions.slice() : ['', '', ''],
-    best: t.steps.solutions ? t.best : null, // index of the solution the team marked as its best
-    roi: t.steps.roi ? t.roi : '',
+    solution: t.steps.solution ? t.solution : '',
     steps: { ...t.steps },
     done: t.done,
     doneAt: t.doneAt,
@@ -817,13 +813,10 @@ function ownitStateFor(pid) {
     captainOnline: t.captainId ? isOnline(t.captainId) : false,
     case: caseById(t.caseId),
     problem: t.problem,
-    solutions: t.solutions.slice(),
-    best: t.best,
-    roi: t.roi,
+    solution: t.solution,
     steps: { ...t.steps },
     done: t.done,
     limits: { problem: OWNIT_PROBLEM_MAX, text: OWNIT_TEXT_MAX },
-    roiQuestion: OWNIT_ROI_QUESTION,
     members: teamMembers(n).map(id => ({ name: nameOf(id), isMe: id === pid, isCaptain: id === t.captainId })),
   };
 }
@@ -1265,8 +1258,8 @@ io.on('connection', (socket) => {
     if (pid && ownit) socket.emit('ownit_me', ownitStateFor(pid));
   });
 
-  // step: 'problem' | 'solutions' | 'roi'
-  socket.on('ownit_submit', ({ participantId, step, problem, solutions, best, roi } = {}) => {
+  // step: 'problem' | 'solution'
+  socket.on('ownit_submit', ({ participantId, step, problem, solution } = {}) => {
     const pid = whoAmI(participantId);
     if (!pid || !ownitLive()) return;
     const team = teams.find(t => t.id === participants[pid].teamId);
@@ -1281,21 +1274,12 @@ io.on('connection', (socket) => {
       if (!v) return fail('Write the problem in one line.');
       if (v.length > OWNIT_PROBLEM_MAX) return fail(`Keep the problem to ${OWNIT_PROBLEM_MAX} characters.`);
       t.problem = v; t.steps.problem = true;
-    } else if (step === 'solutions') {
+    } else if (step === 'solution') {
       if (!t.steps.problem) return fail('Submit the problem statement first.');
-      if (!Array.isArray(solutions) || solutions.length !== 3) return fail('Write all 3 solutions.');
-      const v = solutions.map(clean);
-      if (v.some(x => !x)) return fail('Write all 3 solutions.');
-      if (v.some(x => x.length > OWNIT_TEXT_MAX)) return fail(`Keep each solution to ${OWNIT_TEXT_MAX} characters.`);
-      const b = best === undefined || best === null ? 0 : best;
-      if (![0, 1, 2].includes(b)) return fail('Pick your best solution.');
-      t.solutions = v; t.best = b; t.steps.solutions = true;
-    } else if (step === 'roi') {
-      if (!t.steps.problem || !t.steps.solutions) return fail('Submit the problem and the 3 solutions first.');
-      const v = clean(roi);
-      if (!v) return fail('Answer the ROI question.');
-      if (v.length > OWNIT_TEXT_MAX) return fail(`Keep the answer to ${OWNIT_TEXT_MAX} characters.`);
-      t.roi = v; t.steps.roi = true;
+      const v = clean(solution);
+      if (!v) return fail('Write your solution.');
+      if (v.length > OWNIT_TEXT_MAX) return fail(`Keep the solution to ${OWNIT_TEXT_MAX} characters.`);
+      t.solution = v; t.steps.solution = true;
       t.done = true; t.doneAt = Date.now();
     } else {
       return;
