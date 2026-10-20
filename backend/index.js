@@ -247,20 +247,38 @@ function pickShifts(n) {
   return chosen;
 }
 
-function scenarioPublic(id) {
+function scenarioPublic(id, order) {
   const s = SCENARIO_BY_ID[id];
   if (!s) return null;
-  // Behaviour labels are hidden while answering, so the explanation to the
-  // receiving team comes from the answerer, not from the screen.
-  return { id: s.id, category: s.category, text: s.text, options: s.options.map(o => ({ title: o.title, detail: o.detail })) };
+  // Behaviour labels are hidden while answering. Options are shown in a
+  // shuffled order per answerer (order[i] = original index of displayed option i),
+  // so no behaviour gains from always being option 1.
+  const ord = Array.isArray(order) && order.length === s.options.length ? order : s.options.map((o, i) => i);
+  return { id: s.id, category: s.category, text: s.text, options: ord.map(k => ({ title: s.options[k].title, detail: s.options[k].detail, k })) };
 }
 
+// Displayed option index -> original option index for answer j of delivery d.
+function originalOption(d, j, opt) {
+  const ord = d.optionOrders && d.optionOrders[j];
+  return Array.isArray(ord) ? ord[opt] : opt;
+}
+
+// Balanced draw: a team never repeats a scenario, and across the room every
+// scenario is used about equally (least-used first, random among ties), so
+// the room behaviour snapshot compares like with like.
 function drawScenarios(n, count) {
   const deck = puzzle.decks[n];
+  if (!puzzle.useCount) puzzle.useCount = {};
   const out = [];
   for (let i = 0; i < count; i++) {
-    if (deck.idx >= deck.order.length) { deck.order = shuffle(SCENARIOS.map(s => s.id)); deck.idx = 0; }
-    out.push(deck.order[deck.idx++]);
+    let pool = SCENARIOS.map(s => s.id).filter(id => !deck.seen.includes(id) && !out.includes(id));
+    if (!pool.length) { deck.seen = []; pool = SCENARIOS.map(s => s.id).filter(id => !out.includes(id)); }
+    const min = Math.min(...pool.map(id => puzzle.useCount[id] || 0));
+    const least = shuffle(pool.filter(id => (puzzle.useCount[id] || 0) === min));
+    const pick = least[0];
+    out.push(pick);
+    deck.seen.push(pick);
+    puzzle.useCount[pick] = (puzzle.useCount[pick] || 0) + 1;
   }
   return out;
 }
@@ -326,6 +344,7 @@ function startPuzzle() {
     captains: {},
     rotation: {},
     decks: {},
+    useCount: {},
     attempts: {},
     feed: [],
   };
@@ -344,7 +363,7 @@ function startPuzzle() {
 
   inPlay.forEach(num => {
     puzzle.rotation[num] = { order: [], idx: 0 };
-    puzzle.decks[num] = { order: shuffle(SCENARIOS.map(s => s.id)), idx: 0 };
+    puzzle.decks[num] = { seen: [] };
     puzzle.attempts[num] = { wrong: 0, lockedUntil: 0 };
     puzzle.captains[num] = pickCaptain(num);
   });
@@ -386,6 +405,7 @@ function openNextRound(fromTeam) {
   next.status = 'answering';
   next.openedAt = Date.now();
   next.scenarioIds = drawScenarios(fromTeam, CODE_LENGTH);
+  next.optionOrders = next.scenarioIds.map(() => shuffle([0, 1, 2]));
   next.answerers = pickAnswerers(fromTeam, CODE_LENGTH);
   next.answers = Array(CODE_LENGTH).fill(null);
   return next;
@@ -432,7 +452,7 @@ function computeStats(teamNumber) {
     if (teamNumber && d.from !== teamNumber) return;
     d.answers.forEach((opt, j) => {
       if (opt === null || opt === undefined) return;
-      const b = behaviorOf(d.scenarioIds[j], opt);
+      const b = behaviorOf(d.scenarioIds[j], originalOption(d, j, opt));
       if (!b) return;
       chosen[b]++; answersGiven++;
       if (!d.explained) return;
@@ -497,7 +517,7 @@ function puzzleStateFor(pid) {
       const ans = d.answers[j];
       tasks.push({
         deliveryId: d.id, round: d.round, position: j + 1, toTeam: d.to,
-        scenario: scenarioPublic(d.scenarioIds[j]),
+        scenario: scenarioPublic(d.scenarioIds[j], d.optionOrders && d.optionOrders[j]),
         answered: ans, digit: ans === null ? null : ans + 1,
       });
     });
