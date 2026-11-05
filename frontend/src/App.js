@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import * as d3 from 'd3';
 import { QRCodeSVG } from 'qrcode.react';
@@ -292,17 +292,15 @@ function ParticipantView() {
   const [team, setTeam] = useState(null);
   const [teammates, setTeammates] = useState([]);
   const [myName, setMyName] = useState('');
-  const [activity, setActivity] = useState('constellation');
 
   const restoreFromState = useCallback((state) => {
     const me = state.participants[participantId];
     setJoinedCount(Object.keys(state.participants).length);
-    setActivity(state.session.activity || 'constellation');
     if (state.questions) setQuestions(state.questions);
     if (!me) { setScreen('join'); return; }
     setMyName(me.name);
 
-    if (state.session.state === 'teams_formed' || state.session.activity === 'puzzle' || state.session.activity === 'ownit') {
+    if (state.session.state === 'teams_formed') {
       const myTeam = state.teams.find((t) => t.id === me.teamId);
       if (myTeam) {
         setTeam(myTeam);
@@ -377,22 +375,19 @@ function ParticipantView() {
       }
     });
     socket.on('session_update', (session) => {
-      setActivity(session.activity || 'constellation');
       if (session.state === 'quiz_open') {
         setScreen((s) => (s === 'waiting' ? 'quiz' : s));
       }
     });
-    socket.on('puzzle_started', () => setActivity('puzzle'));
-    socket.on('ownit_started', () => setActivity('ownit'));
     socket.on('reset', () => {
       setScreen('join'); setQuestions([]); setQuizIndex(0); setAnsweredSet(new Set());
-      setSelectedOption(null); setLocked(false); setTeam(null); setTeammates([]); setActivity('constellation');
+      setSelectedOption(null); setLocked(false); setTeam(null); setTeammates([]);
     });
     return () => {
       socket.off('state_sync', restoreFromState);
       socket.off('joined'); socket.off('join_error'); socket.off('room_count');
       socket.off('teams_formed'); socket.off('reset');
-      socket.off('answer_confirmed'); socket.off('session_update'); socket.off('puzzle_started'); socket.off('ownit_started');
+      socket.off('answer_confirmed'); socket.off('session_update');
     };
   }, [participantId, restoreFromState]);
 
@@ -426,14 +421,6 @@ function ParticipantView() {
     return () => clearTimeout(confirmTimeout);
   }
 
-  // Once a team is known and the room has moved to the puzzle, hand off entirely.
-  if (team && activity === 'puzzle') {
-    return <PuzzleParticipant team={team} teammates={teammates} participantId={participantId} />;
-  }
-  if (team && activity === 'ownit') {
-    return <OwnItParticipant team={team} participantId={participantId} />;
-  }
-
   const question = questions[quizIndex];
 
   return (
@@ -445,13 +432,13 @@ function ParticipantView() {
 
         {screen === 'join' && (
           <form onSubmit={handleJoin} className="lc-fadein" style={{ width: '100%', textAlign: 'center' }}>
-            <span className="lc-badge" style={{ marginBottom: 18, display: 'inline-flex' }}>✦ Team Formation</span>
+            <span className="lc-badge" style={{ marginBottom: 18, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="users" size={14} /> Team Formation</span>
             <h1 className="lc-h1" style={{ marginBottom: 10 }}>Join the room</h1>
             <p className="lc-sub" style={{ marginBottom: 26 }}>Please write your name</p>
             <input className="lc-input" value={name} maxLength={20} placeholder="Your name"
               onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-              {[['male', 'Male'], ['female', 'Female']].map(([val, label]) => (
+              {[['man', 'Man'], ['woman', 'Woman']].map(([val, label]) => (
                 <button key={val} type="button" onClick={() => setGender(val)}
                   className={`lc-option ${gender === val ? 'lc-selected' : ''}`}
                   style={{ textAlign: 'center', padding: '16px 12px' }}>
@@ -496,7 +483,7 @@ function ParticipantView() {
             </div>
             {locked && (
               <div className="lc-fadein" style={{ textAlign: 'center', marginTop: 22 }}>
-                <span className="lc-badge">{pending ? 'Sending…' : '✓ Locked in'}</span>
+                <span className="lc-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{pending ? 'Sending...' : <><Icon name="check" size={14} /> Locked in</>}</span>
               </div>
             )}
           </div>
@@ -528,7 +515,7 @@ function ParticipantView() {
             </div>
             <p className="lc-faint">Keep this screen. It's how you find your group.</p>
             <div className="lc-fadein" style={{ marginTop: 28 }}>
-              <span className="lc-badge">Waiting for the next activity</span>
+              <span className="lc-badge">Go and find your team</span>
             </div>
           </div>
         )}
@@ -537,50 +524,14 @@ function ParticipantView() {
   );
 }
 
-/* ============================================================
-   CODE UP: SHARED PIECES
-   ============================================================ */
-const PUZZLE_IMAGE = '/kfc-puzzle.png';
-const BOARD_COLS = 5;
-const BOARD_ROWS = 4;
-
-const BEHAVIOR_META = {
-  'Own It': { colour: '#e8571a', icon: 'own' },
-  'Show Up': { colour: '#e8b923', icon: 'show' },
-  'Ask for Help': { colour: '#00A3FF', icon: 'ask' },
-  'Lift Others': { colour: '#4CD64C', icon: 'lift' },
-  'Reflect & Learn': { colour: '#B14CFF', icon: 'reflect' },
-};
-const BEHAVIOR_LIST = Object.keys(BEHAVIOR_META);
-
 const ICON_PATHS = {
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></>,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
-  send: <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" />,
   users: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5" /><path d="M16 4.6a3.5 3.5 0 010 6.8M18 14.8c1.9.7 3.1 2.4 3.5 5.2" /></>,
-  captain: <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />,
-  key: <><circle cx="7.5" cy="15.5" r="4.5" /><path d="M10.7 12.3L21 2M17 6l3 3M14 9l2 2" /></>,
-  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-  alert: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5v.01" /></>,
-  chevron: <path d="M6 9l6 6 6-6" />,
-  flag: <path d="M5 21V4h12l-2 4 2 4H5" />,
-  puzzle: <path d="M10 3h4v2.5a1.5 1.5 0 003 0V3h4v7h-2.5a1.5 1.5 0 000 3H21v8h-7v-2.5a1.5 1.5 0 00-3 0V21H3v-8h2.5a1.5 1.5 0 000-3H3V3h7z" />,
-  own: <><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" /></>,
-  show: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-  ask: <><path d="M21 12a8.5 8.5 0 01-12.3 7.6L3.5 21l1.4-5A8.5 8.5 0 1121 12z" /><path d="M9.7 9.6a2.4 2.4 0 114 1.8c-.9.6-1.7 1.1-1.7 2.1M12 16.3v.01" /></>,
-  lift: <><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>,
-  heart: <path d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 3.9 4.5 7.2 4.5c2 0 3.6 1.1 4.8 2.8 1.2-1.7 2.8-2.8 4.8-2.8 3.3 0 5.6 3.1 4.4 6.6-1.7 4.8-9.2 9.4-9.2 9.4z" />,
-  shield: <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" />,
-  link: <><path d="M10 14a4.5 4.5 0 006.4 0l3-3a4.5 4.5 0 00-6.4-6.4l-1 1" /><path d="M14 10a4.5 4.5 0 00-6.4 0l-3 3a4.5 4.5 0 006.4 6.4l1-1" /></>,
-  edit: <><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>,
+  shuffle: <><path d="M3 7h3.5c4.5 0 6.5 10 11 10H21" /><path d="M3 17h3.5c1.8 0 3.1-1.6 4.2-3.6M13.3 9.6C14.4 8 15.7 7 17.5 7H21" /><path d="M18 4l3 3-3 3M18 14l3 3-3 3" /></>,
   x: <path d="M6 6l12 12M18 6L6 18" />,
-  download: <><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 20h16" /></>,
   expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   shrink: <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />,
-  star: <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5z" />,
-  bulb: <path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z" />,
-  reflect: <><path d="M3.5 12a8.5 8.5 0 0114.6-5.9L20.5 8.5" /><path d="M20.5 3.5v5h-5" /><path d="M20.5 12a8.5 8.5 0 01-14.6 5.9L3.5 15.5" /><path d="M3.5 20.5v-5h5" /></>,
 };
 
 function Icon({ name, size = 18, stroke = 1.8, style }) {
@@ -592,1462 +543,6 @@ function Icon({ name, size = 18, stroke = 1.8, style }) {
   );
 }
 
-function BehaviorIcon({ behavior, size = 18, stroke = 1.8 }) {
-  const meta = BEHAVIOR_META[behavior];
-  if (!meta) return null;
-  return <span style={{ color: meta.colour, display: 'inline-flex' }}><Icon name={meta.icon} size={size} stroke={stroke} /></span>;
-}
-
-// Reads the real image size once, so the board and every crop keep the
-// artwork's true proportions whatever size kfc-puzzle.png is.
-let puzzleImageRatio = null;
-function usePuzzleImageRatio() {
-  const [ratio, setRatio] = useState(puzzleImageRatio || 1.5);
-  useEffect(() => {
-    if (puzzleImageRatio) return;
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth && img.naturalHeight) {
-        puzzleImageRatio = img.naturalWidth / img.naturalHeight;
-        setRatio(puzzleImageRatio);
-      }
-    };
-    img.src = PUZZLE_IMAGE;
-  }, []);
-  return ratio;
-}
-
-function useNow(active, interval = 1000) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setNow(Date.now()), interval);
-    return () => clearInterval(id);
-  }, [active, interval]);
-  return now;
-}
-
-// One quarter of a piece = one cell of a 10 x 8 grid over the whole image.
-function quarterCell(slot, q) {
-  const idx = slot - 1;
-  const col = idx % BOARD_COLS, row = Math.floor(idx / BOARD_COLS);
-  return { c: col * 2 + (q % 2), r: row * 2 + Math.floor(q / 2) };
-}
-function cropStyle(c, r) {
-  return {
-    backgroundImage: `url('${PUZZLE_IMAGE}')`,
-    backgroundSize: `${BOARD_COLS * 200}% ${BOARD_ROWS * 200}%`,
-    backgroundPosition: `${(c / (BOARD_COLS * 2 - 1)) * 100}% ${(r / (BOARD_ROWS * 2 - 1)) * 100}%`,
-    backgroundRepeat: 'no-repeat',
-  };
-}
-
-// A team's own piece on the phone: 4 quarters, lit as they unlock.
-function PieceView({ slot, quarters = [], width = 220, colour }) {
-  const ratio = usePuzzleImageRatio();
-  const pieceAspect = (ratio * BOARD_ROWS) / BOARD_COLS; // width / height of one piece
-  const height = width / pieceAspect;
-  const gap = 3;
-  const qw = (width - gap) / 2, qh = (height - gap) / 2;
-  return (
-    <div style={{ position: 'relative', width, height, margin: '0 auto' }}>
-      {[0, 1, 2, 3].map((q) => {
-        const { c, r } = quarterCell(slot, q);
-        const open = !!quarters[q];
-        return (
-          <div key={q} className={open ? 'lc-quarter-open' : ''} style={{
-            position: 'absolute', left: (q % 2) * (qw + gap), top: Math.floor(q / 2) * (qh + gap), width: qw, height: qh,
-            borderRadius: 8, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `1px solid ${open ? (colour || '#e8b923') + '99' : 'rgba(255,255,255,.08)'}`,
-            ...(open ? cropStyle(c, r) : { background: 'rgba(255,255,255,.035)', color: 'rgba(245,240,232,.28)' }),
-          }}>
-            {!open && <Icon name="lock" size={20} />}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SectionTitle({ icon, children, colour }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, color: colour || 'var(--gold)' }}>
-      <Icon name={icon} size={16} />
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>{children}</span>
-    </div>
-  );
-}
-
-function TeamTag({ number, colour }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, color: colour || 'var(--ink)' }}>
-      <span style={{ width: 9, height: 9, borderRadius: '50%', background: colour || '#888', boxShadow: `0 0 8px ${colour || '#888'}` }} />
-      Team {number}
-    </span>
-  );
-}
-
-function CodeDigits({ code, size = 46 }) {
-  return (
-    <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-      {String(code || '').split('').map((d, i) => (
-        <div key={i} style={{
-          width: size, height: size * 1.2, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: size * 0.62, color: '#1a1410',
-          background: 'linear-gradient(160deg,#f6d77a,var(--gold))', boxShadow: '0 6px 20px rgba(232,185,35,.3)',
-        }}>{d}</div>
-      ))}
-    </div>
-  );
-}
-
-/* ============================================================
-   CODE UP: PARTICIPANT (phone)
-   ============================================================ */
-function PuzzleParticipant({ team, teammates = [], participantId }) {
-  const [me, setMe] = useState(null);
-  const [error, setError] = useState(null);
-  const [picked, setPicked] = useState({});   // "deliveryId:position" -> option index before lock-in
-  const [sent, setSent] = useState({});       // "deliveryId:position" -> true once emitted
-  const [code, setCode] = useState('');
-  const [flash, setFlash] = useState(null);
-  const [showTeam, setShowTeam] = useState(false);
-  const errTimer = useRef(null);
-
-  const requestMe = useCallback(() => {
-    socket.emit('puzzle_get_me', { participantId });
-  }, [participantId]);
-
-  useEffect(() => {
-    requestMe();
-    const onMe = (s) => { if (s) setMe(s); };
-    const onErr = ({ message }) => {
-      setError(message);
-      clearTimeout(errTimer.current);
-      errTimer.current = setTimeout(() => setError(null), 4500);
-    };
-    // Re-fetch after any reconnect or return to the tab, so a locked phone or
-    // app switch always comes back to exactly where this person left off.
-    const onVisible = () => { if (document.visibilityState === 'visible') requestMe(); };
-    socket.on('puzzle_me', onMe);
-    socket.on('puzzle_error', onErr);
-    socket.on('connect', requestMe);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      socket.off('puzzle_me', onMe);
-      socket.off('puzzle_error', onErr);
-      socket.off('connect', requestMe);
-      document.removeEventListener('visibilitychange', onVisible);
-      clearTimeout(errTimer.current);
-    };
-  }, [requestMe]);
-
-  // When a code is accepted the piece unlocks straight away: clear the box
-  // and show a short confirmation.
-  const received = me ? me.received : 0;
-  const prevReceived = useRef(null);
-  useEffect(() => {
-    if (prevReceived.current !== null && received > prevReceived.current) {
-      setCode('');
-      setFlash('Code accepted. Another part of your piece is unlocked.');
-      const id = setTimeout(() => setFlash(null), 4500);
-      prevReceived.current = received;
-      return () => clearTimeout(id);
-    }
-    prevReceived.current = received;
-  }, [received]);
-
-  const lockedUntil = me ? me.lockedUntil : 0;
-  const now = useNow(!!lockedUntil && lockedUntil > Date.now(), 500);
-  const lockLeft = lockedUntil ? Math.max(0, Math.ceil((lockedUntil - now) / 1000)) : 0;
-
-  function lockIn(task) {
-    const key = `${task.deliveryId}:${task.position}`;
-    const opt = picked[key];
-    if (opt === undefined || sent[key]) return;
-    setSent((s) => ({ ...s, [key]: true }));
-    socket.emit('puzzle_answer', { participantId, deliveryId: task.deliveryId, position: task.position, optionIndex: opt });
-    setTimeout(() => setSent((s) => { const n = { ...s }; delete n[key]; return n; }), 4000); // allow a retry if it never landed
-  }
-
-  function submitCode(e) {
-    e.preventDefault();
-    if (code.length !== 4) { setError('Codes are 4 digits, each 1, 2 or 3.'); return; }
-    socket.emit('puzzle_submit_code', { participantId, code });
-  }
-
-  const colour = team.colour;
-  const header = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, paddingRight: 84 }}>
-      <img src="/logo.png" alt="" style={{ height: 32 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span className="lc-badge" style={{ background: `${colour}22`, color: colour, borderColor: `${colour}55` }}>Team {team.number}</span>
-        {me && me.isCaptain && (
-          <span className="lc-badge" style={{ background: 'rgba(232,185,35,.15)', color: 'var(--gold)', borderColor: 'rgba(232,185,35,.3)' }}>
-            <Icon name="captain" size={13} /> Captain
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  const shell = (children) => (
-    <div className="lc-root">
-      <div className="lc-glow" />
-      <ConnectionPill />
-      <div className="lc-content" style={{ minHeight: '100dvh', padding: '26px 16px 56px', maxWidth: 480, margin: '0 auto' }}>
-        {header}
-        {children}
-      </div>
-    </div>
-  );
-
-  if (!me) {
-    return shell(
-      <div style={{ textAlign: 'center', marginTop: 60 }}>
-        <div className="lc-pulse-dot" style={{ margin: '0 auto 20px' }} />
-        <p className="lc-sub">Loading your puzzle...</p>
-      </div>
-    );
-  }
-
-  if (!me.inPlay) {
-    return shell(
-      <div className="lc-card" style={{ padding: 22, textAlign: 'center' }}>
-        <p style={{ margin: 0 }}>You're not on a team in this round. Please find the facilitator.</p>
-      </div>
-    );
-  }
-
-  const complete = me.state === 'complete';
-  const openTasks = (me.tasks || []).filter((t) => t.answered === null);
-  const doneTasks = (me.tasks || []).filter((t) => t.answered !== null);
-  const out = me.outgoing;
-
-  return shell(
-    <>
-      <h1 className="lc-h1" style={{ fontSize: 24, marginBottom: 6 }}>Code Up</h1>
-      <p className="lc-faint" style={{ marginTop: 0, marginBottom: 18 }}>
-        Answer for other teams, unlock your piece with their codes.
-      </p>
-
-      {error && (
-        <div className="lc-card lc-fadein" style={{ padding: '13px 16px', marginBottom: 14, border: '1px solid #a83232', display: 'flex', gap: 10, alignItems: 'center', color: '#ff9a9a' }}>
-          <Icon name="alert" size={18} /><span>{error}</span>
-        </div>
-      )}
-
-      {/* Our piece */}
-      <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <PieceView slot={me.piece.slot} quarters={me.piece.quarters} width={132} colour={colour} />
-          <div style={{ flex: 1 }}>
-            <div className="lc-stat-label">Our piece</div>
-            <div className="lc-stat-value" style={{ fontSize: 26 }}>{me.received}<span style={{ color: 'var(--ink-faint)', fontSize: 17 }}>/{me.rounds} unlocked</span></div>
-            <div className="lc-stat-label" style={{ marginTop: 10 }}>Codes we delivered</div>
-            <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 18 }}>{me.sent}<span style={{ color: 'var(--ink-faint)', fontSize: 14 }}>/{me.rounds}</span></div>
-          </div>
-        </div>
-      </div>
-
-      {complete && (
-        <div className="lc-card lc-pop" style={{ padding: 22, marginBottom: 14, textAlign: 'center', border: '1px solid rgba(232,185,35,.4)' }}>
-          <div style={{ color: 'var(--gold)', display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Icon name="flag" size={28} /></div>
-          <h2 className="lc-h2" style={{ margin: '0 0 6px' }}>The picture is complete</h2>
-          <p className="lc-sub">Look up at the screen.</p>
-        </div>
-      )}
-
-      {/* My scenario(s) */}
-      {!complete && openTasks.map((t) => {
-        const key = `${t.deliveryId}:${t.position}`;
-        const choice = picked[key];
-        return (
-          <div key={key} className="lc-card lc-fadein" style={{ padding: 18, marginBottom: 14, border: '1px solid rgba(232,87,26,.45)' }}>
-            <SectionTitle icon="key" colour="var(--carnelian-bright)">Your turn: digit {t.position} of 4</SectionTitle>
-            <p className="lc-faint" style={{ marginTop: 0, marginBottom: 8 }}>For <TeamTag number={t.toTeam} colour={(me.outgoing && me.outgoing.toColour) || undefined} /> &middot; {t.scenario.category}</p>
-            <p style={{ fontSize: 16.5, lineHeight: 1.5, margin: '0 0 16px', fontWeight: 500 }}>{t.scenario.text}</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {t.scenario.options.map((o, i) => (
-                <button key={i} onClick={() => setPicked((p) => ({ ...p, [key]: i }))}
-                  className={`lc-option ${choice === i ? 'lc-selected' : ''}`} style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <span style={{
-                    width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 15,
-                    background: choice === i ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.07)',
-                  }}>{i + 1}</span>
-                  <span>
-                    <span style={{ display: 'block', fontWeight: 700, fontSize: 15.5 }}>{o.title}</span>
-                    <span style={{ display: 'block', fontSize: 13.5, opacity: 0.8, marginTop: 4, lineHeight: 1.45 }}>{o.detail}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <button className="lc-btn lc-btn-primary" style={{ width: '100%', marginTop: 14 }} disabled={choice === undefined || !!sent[key]} onClick={() => lockIn(t)}>
-              {sent[key] ? 'Locking in...' : 'Lock in my answer'}
-            </button>
-            <p className="lc-faint" style={{ marginBottom: 0 }}>No wrong answers. Pick what you would really do.</p>
-          </div>
-        );
-      })}
-
-      {!complete && doneTasks.map((t) => {
-        const o = t.scenario.options[t.answered];
-        return (
-          <div key={`${t.deliveryId}:${t.position}`} className="lc-card" style={{ padding: 16, marginBottom: 14, display: 'flex', gap: 14, alignItems: 'center' }}>
-            <div style={{
-              width: 46, height: 54, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 28, color: '#1a1410', background: 'linear-gradient(160deg,#f6d77a,var(--gold))',
-            }}>{t.digit}</div>
-            <div>
-              <div className="lc-stat-label">Your digit {t.position} of 4</div>
-              <div style={{ fontWeight: 600, marginTop: 3 }}>{o ? o.title : ''}</div>
-              <div className="lc-faint" style={{ marginTop: 4 }}>Locked in. The code appears once all 4 answers are in.</div>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Our delivery */}
-      {!complete && (
-        <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-          <SectionTitle icon="send">Our delivery</SectionTitle>
-          {!out ? (
-            <p style={{ margin: 0, color: 'var(--ink-dim)' }}>
-              {me.sent >= me.rounds ? 'All 4 codes delivered. Help your captain unlock your piece.' : 'Waiting for the next round...'}
-            </p>
-          ) : (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-                <span className="lc-faint" style={{ margin: 0 }}>Round {out.round} of {me.rounds}</span>
-                <Icon name="arrow" size={14} style={{ opacity: 0.5 }} />
-                <TeamTag number={out.toTeam} colour={out.toColour} />
-                {out.toCaptainName && <span className="lc-faint" style={{ margin: 0 }}>captain {out.toCaptainName}</span>}
-              </div>
-              {out.status === 'answering' && (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {out.answerers.map((a) => (
-                      <div key={a.position} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,.035)' }}>
-                        <span style={{ width: 22, fontWeight: 700, opacity: 0.55 }}>{a.position}</span>
-                        <span style={{ flex: 1, fontWeight: a.isMe ? 700 : 500 }}>{a.name || 'Waiting for someone'}{a.isMe ? ' (you)' : ''}</span>
-                        {a.done
-                          ? <span style={{ color: '#3ddc84' }}><Icon name="check" size={18} stroke={2.4} /></span>
-                          : <span style={{ color: 'var(--ink-faint)' }}><Icon name="clock" size={16} /></span>}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="lc-faint" style={{ marginBottom: 0 }}>{out.answeredCount}/4 answered. The code appears here once all 4 are in.</p>
-                </>
-              )}
-              {out.status === 'ready' && (
-                <div className="lc-pop" style={{ textAlign: 'center' }}>
-                  <CodeDigits code={out.code} />
-                  <p style={{ margin: '16px 0 6px', fontWeight: 600 }}>Deliver this code to Team {out.toTeam}{out.toCaptainName ? `. Give it to their captain, ${out.toCaptainName}` : ''}.</p>
-                  <p className="lc-faint" style={{ marginTop: 0, marginBottom: 0 }}>Their captain types it in to unlock part of their picture.</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Receiving: captain enters codes */}
-      {!complete && (
-        <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-          <SectionTitle icon="key">Codes coming to us</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-            {me.incoming.map((d, i) => (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: 'rgba(255,255,255,.035)', opacity: d.status === 'unlocked' ? 0.55 : 1 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700 }}><Icon name="key" size={15} style={{ color: 'var(--gold)' }} />Code {i + 1}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: d.status === 'unlocked' ? '#3ddc84' : d.status === 'ready' ? 'var(--gold)' : 'var(--ink-faint)' }}>
-                  {d.status === 'unlocked' && <><Icon name="check" size={15} stroke={2.4} /> Unlocked</>}
-                  {d.status === 'ready' && <><Icon name="send" size={14} /> On the way</>}
-                  {d.status === 'waiting' && <><Icon name="clock" size={14} /> Answering</>}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {!me.isCaptain && (
-            <p style={{ margin: 0, color: 'var(--ink-dim)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <Icon name="captain" size={16} style={{ marginTop: 2, color: 'var(--gold)' }} />
-              <span>{me.captainName || 'Your captain'} enters codes for your team.{me.captainOnline ? '' : ' If they stay offline, the role moves to someone else automatically.'} Codes can come from any team, so when someone arrives with a code, bring them to {me.captainName || 'your captain'}.</span>
-            </p>
-          )}
-
-          {flash && (
-            <div className="lc-fadein" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', borderRadius: 12, marginBottom: 12, background: 'rgba(61,220,132,.12)', border: '1px solid rgba(61,220,132,.4)', color: '#3ddc84', fontWeight: 600 }}>
-              <Icon name="check" size={18} stroke={2.4} /><span>{flash}</span>
-            </div>
-          )}
-
-          {me.isCaptain && (
-            lockLeft > 0 ? (
-              <div style={{ textAlign: 'center', padding: '10px 0', color: '#ff9a9a' }}>
-                <Icon name="lock" size={22} />
-                <p style={{ margin: '8px 0 0' }}>Too many wrong codes. Try again in {lockLeft}s.</p>
-              </div>
-            ) : (
-              <form onSubmit={submitCode}>
-                <input className="lc-input" value={code} inputMode="numeric" placeholder="Enter the 4 digit code"
-                  onChange={(e) => setCode(e.target.value.replace(/[^1-3]/g, '').slice(0, 4))}
-                  style={code ? { fontSize: 28, letterSpacing: 14, fontFamily: "'Poppins',sans-serif", fontWeight: 700 } : { fontSize: 17 }} />
-                <button className="lc-btn lc-btn-primary" type="submit" style={{ width: '100%', marginTop: 10 }} disabled={code.length !== 4}>Unlock</button>
-                <p className="lc-faint" style={{ marginBottom: 0 }}>Each digit is 1, 2 or 3. The code unlocks your piece straight away.</p>
-              </form>
-            )
-          )}
-
-        </div>
-      )}
-
-      {/* Team */}
-      <div className="lc-card" style={{ padding: '14px 18px' }}>
-        <button onClick={() => setShowTeam((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 600 }}>
-          <Icon name="users" size={16} style={{ color: 'var(--gold)' }} /> My team
-          <Icon name="chevron" size={16} style={{ marginLeft: 'auto', transform: showTeam ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-        </button>
-        {showTeam && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-            {teammates.length > 0
-              ? teammates.map((n, i) => <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 40}ms` }}>{n}{n === me.captainName ? '  (captain)' : ''}</div>)
-              : <div className="lc-teammate" style={{ opacity: 0.6, fontStyle: 'italic' }}>No one else on your team</div>}
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-/* ============================================================
-   CODE UP: PROJECTOR
-   ============================================================ */
-function BehaviorBars({ stats, large }) {
-  if (!stats) return null;
-  const total = stats.answersGiven || 0;
-  const max = Math.max(1, ...BEHAVIOR_LIST.map((b) => stats.chosen[b] || 0));
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: large ? 18 : 10 }}>
-      {BEHAVIOR_LIST.map((b) => {
-        const n = stats.chosen[b] || 0;
-        const pct = total ? Math.round((n / total) * 100) : 0;
-        const meta = BEHAVIOR_META[b];
-        return (
-          <div key={b} style={{ display: 'flex', alignItems: 'center', gap: large ? 18 : 10 }}>
-            <BehaviorIcon behavior={b} size={large ? 30 : 18} />
-            <div style={{ width: large ? 210 : 120, fontWeight: 700, fontSize: large ? 22 : 13, color: meta.colour }}>{b}</div>
-            <div style={{ flex: 1, height: large ? 22 : 9, borderRadius: 999, background: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-              <div style={{ width: `${(n / max) * 100}%`, height: '100%', borderRadius: 999, background: meta.colour, transition: 'width .8s cubic-bezier(.2,.8,.3,1)' }} />
-            </div>
-            <div style={{ width: large ? 90 : 46, textAlign: 'right', fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: large ? 28 : 13 }}>{pct}%</div>
-            {large && (
-              <div style={{ width: 130, textAlign: 'right', fontSize: 15, color: 'rgba(245,240,232,.55)', whiteSpace: 'nowrap' }}>
-                {n} chosen
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PuzzleBoard({ board, maxW, maxH }) {
-  const ratio = usePuzzleImageRatio();
-  const width = Math.max(200, Math.min(maxW, maxH * ratio));
-  const height = width / ratio;
-  const gap = 2;
-  const qCols = BOARD_COLS * 2, qRows = BOARD_ROWS * 2;
-  const cw = width / qCols, ch = height / qRows;
-  const pieces = board ? board.pieces : [];
-  return (
-    <div style={{ position: 'relative', width, height }}>
-      {pieces.map((p) => [0, 1, 2, 3].map((q) => {
-        const { c, r } = quarterCell(p.slot, q);
-        const open = !!p.quarters[q];
-        return (
-          <div key={`${p.slot}-${q}`} className={open ? 'lc-quarter-open' : ''} style={{
-            position: 'absolute', left: c * cw + gap / 2, top: r * ch + gap / 2, width: cw - gap, height: ch - gap,
-            borderRadius: 3,
-            ...(open ? cropStyle(c, r) : { background: 'rgba(255,255,255,.035)' }),
-          }} />
-        );
-      }))}
-      {/* piece outlines and team numbers on pieces still locked */}
-      {pieces.map((p) => {
-        const idx = p.slot - 1;
-        const col = idx % BOARD_COLS, row = Math.floor(idx / BOARD_COLS);
-        const done = p.quarters.every(Boolean);
-        const count = p.quarters.filter(Boolean).length;
-        return (
-          <div key={`o${p.slot}`} style={{
-            position: 'absolute', left: col * cw * 2, top: row * ch * 2, width: cw * 2, height: ch * 2,
-            border: `1.5px solid ${done ? 'transparent' : (p.colour || 'rgba(255,255,255,.2)') + '88'}`, borderRadius: 6,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', transition: 'border-color .8s',
-          }}>
-            {!done && p.teamNumber && (
-              <span style={{
-                padding: '4px 10px', borderRadius: 999, background: 'rgba(7,8,11,.78)', border: `1px solid ${p.colour}66`,
-                color: p.colour, fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: Math.max(11, Math.min(17, cw / 5.5)),
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-              }}>
-                Team {p.teamNumber}<span style={{ color: 'rgba(245,240,232,.5)', fontWeight: 600 }}>{count}/4</span>
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PuzzleProjector({ board }) {
-  const [qrOpen, setQrOpen] = useState(false);
-  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
-  useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  const sideW = Math.min(330, Math.max(250, size.w * 0.21));
-  const pad = 26;
-  const complete = board && board.state === 'complete';
-  const showResults = board && board.showResults && board.stats;
-
-  return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: 'radial-gradient(ellipse at top, #1a1410 0%, #07080b 60%)', color: '#f5f0e8', fontFamily: "'Inter',sans-serif" }}>
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 28px',
-        background: '#0d0e12', borderBottom: '2px solid #e8571a',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-          <img src="/logo.png" alt="Carnelian" style={{ height: 38 }} />
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16 }}>Code Up</span>
-        </div>
-        <div style={{ flex: 1, textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15 }}>
-          {complete ? (
-            <span style={{ color: '#e8b923' }}>Complete</span>
-          ) : (
-            <>
-              <span style={{ color: '#e8571a' }}>{board ? board.unlocked : 0}</span>
-              <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 80} pieces unlocked</span>
-            </>
-          )}
-        </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 18 }}>
-          {size.w >= 1500 && <span style={{ fontSize: 11.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(245,240,232,.4)' }}>Convey Meaning. Create Significance.</span>}
-          <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
-          <FullscreenButton compact={size.w < 1500} />
-        </div>
-      </div>
-      <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
-
-      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: sideW + pad * 2, bottom: pad, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <PuzzleBoard board={board} maxW={size.w - sideW - pad * 3} maxH={size.h - TOP_BAR_HEIGHT - pad * 2} />
-      </div>
-
-      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, right: pad, bottom: pad, width: sideW, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
-          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>How it works</div>
-          {[
-            ['key', '4 of you answer a scenario. Your choices make a 4 digit code.'],
-            ['send', 'Deliver the code to your partner team\'s captain.'],
-            ['puzzle', 'Their captain enters it and a piece of their picture unlocks.'],
-          ].map(([ic, t]) => (
-            <div key={ic} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10, fontSize: 13.5, lineHeight: 1.45, color: 'rgba(245,240,232,.78)' }}>
-              <span style={{ color: '#e8571a', marginTop: 1 }}><Icon name={ic} size={16} /></span>{t}
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>Latest</div>
-          {(!board || board.feed.length === 0) && <div style={{ fontSize: 13.5, color: 'rgba(245,240,232,.45)' }}>Waiting for the first code...</div>}
-          {board && board.feed.map((f, i) => (
-            <div key={f.at + '-' + i} className="lc-rise" style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,.05)', fontSize: 13.5, opacity: 1 - i * 0.09 }}>
-              <span style={{ color: '#3ddc84' }}><Icon name="check" size={15} stroke={2.4} /></span>
-              <span>{f.text}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding: 18, borderRadius: 16, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.07)' }}>
-          <div style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 700, marginBottom: 12 }}>The 5 behaviours</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {BEHAVIOR_LIST.map((b) => (
-              <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 600 }}>
-                <BehaviorIcon behavior={b} size={17} /><span>{b}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {showResults && (
-        <div className="lc-fadein" style={{
-          position: 'absolute', inset: 0, top: TOP_BAR_HEIGHT, zIndex: 20, background: 'rgba(7,8,11,.94)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 6vw',
-        }}>
-          <div style={{ fontSize: 13, letterSpacing: '.3em', textTransform: 'uppercase', color: 'rgba(232,185,35,.85)', fontWeight: 600, marginBottom: 10 }}>How the room chose</div>
-          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(30px,4vw,54px)', marginBottom: 34, textAlign: 'center' }}>
-            {board.stats.answersGiven} decisions across the room
-          </div>
-          <div style={{ width: 'min(1100px, 100%)' }}>
-            <BehaviorBars stats={board.stats} large />
-          </div>
-          <div style={{ marginTop: 34, display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center', fontSize: 15, color: 'rgba(245,240,232,.6)' }}>
-            <span><b style={{ color: '#f5f0e8' }}>%</b> share of all answers that showed this behaviour</span>
-            <span><b style={{ color: '#f5f0e8' }}>chosen</b> number of answers that showed it</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
-   CODE UP: FACILITATOR
-   ============================================================ */
-const DELIVERY_STATUS_LABEL = { answering: 'Answering', ready: 'Code on the way' };
-
-function minutesSince(ts, now) {
-  if (!ts) return '';
-  const s = Math.max(0, Math.floor((now - ts) / 1000));
-  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-}
-
-function PuzzleFacilitatorPanel({ pz, board, onConfirm }) {
-  const now = useNow(true, 1000);
-  const [busy, setBusy] = useState(false);
-  if (!pz) return <div className="lc-card" style={{ padding: 24 }}><p className="lc-faint" style={{ margin: 0 }}>Loading puzzle...</p></div>;
-  const stats = pz.stats;
-  const inFlight = pz.teams.filter((t) => t.outgoing).length;
-  const complete = pz.state === 'complete';
-
-  function unlock(deliveryId, from, to) {
-    onConfirm({
-      title: `Unlock for Team ${to}?`,
-      message: `This opens the piece Team ${from} is bringing to Team ${to} without a code. Use it only when a pair is genuinely stuck.`,
-      confirmLabel: 'Unlock piece',
-      onConfirm: () => socket.emit('facilitator_puzzle_unlock', { deliveryId }),
-    });
-  }
-
-  return (
-    <>
-      <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
-        <div className="lc-stat-card"><div className="lc-stat-label">Unlocked</div><div className="lc-stat-value">{board ? board.unlocked : 0}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{board ? board.total : 80}</span></div>
-          <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${board ? (board.unlocked / board.total) * 100 : 0}%` }} /></div></div>
-        <div className="lc-stat-card"><div className="lc-stat-label">Deliveries in progress</div><div className="lc-stat-value">{complete ? 0 : inFlight}</div></div>
-        <div className="lc-stat-card"><div className="lc-stat-label">Answers given</div><div className="lc-stat-value">{stats.answersGiven}</div></div>
-        <div className="lc-stat-card"><div className="lc-stat-label">Codes delivered</div><div className="lc-stat-value">{pz.teams.reduce((n, t) => n + t.sent, 0)}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{pz.teams.length * 4}</span></div></div>
-      </div>
-
-      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-        <div className="lc-btn-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className={`lc-btn ${pz.showResults ? 'lc-btn-outline' : 'lc-btn-gold'}`} style={{ flex: '1 1 200px' }}
-            onClick={() => socket.emit('facilitator_puzzle_results', { show: !pz.showResults })}>
-            {pz.showResults ? 'Hide results on projector' : 'Show results on projector'}
-          </button>
-          {!complete && (
-            <button className="lc-btn lc-btn-primary" style={{ flex: '1 1 200px' }} onClick={() => onConfirm({
-              title: 'End and reveal the picture?',
-              message: 'Every locked piece opens on the projector right away and phones show the game as complete.',
-              confirmLabel: 'End and reveal',
-              onConfirm: () => socket.emit('facilitator_puzzle_reveal'),
-            })}>End and reveal picture</button>
-          )}
-          {complete && (
-            <button className="lc-btn lc-btn-gold" style={{ flex: '1 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} disabled={busy}
-              onClick={async () => { setBusy(true); try { await downloadBehaviourPdf(pz); } finally { setBusy(false); } }}>
-              <Icon name="download" size={18} /> {busy ? 'Preparing PDF...' : 'Download behaviour stats'}
-            </button>
-          )}
-          <button className="lc-btn lc-btn-outline" style={{ flex: '1 1 160px' }} onClick={() => onConfirm({
-            title: 'Restart the puzzle?',
-            message: 'New pairings, new scenarios and new captains. The board goes back to fully locked. Teams stay as they are.',
-            confirmLabel: 'Restart puzzle', danger: true,
-            onConfirm: () => socket.emit('facilitator_restart_puzzle'),
-          })}>Restart puzzle</button>
-        </div>
-      </div>
-
-      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 6px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Behaviour stats (whole room)</h3>
-        <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
-          Key: <b>%</b> share of all answers showing that behaviour. <b>Chosen</b> number of answers that showed it.
-        </p>
-        <BehaviorBars stats={stats} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 8, marginTop: 16 }}>
-          {BEHAVIOR_LIST.map((b) => (
-            <div key={b} style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.03)', fontSize: 13 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: BEHAVIOR_META[b].colour, marginBottom: 4 }}><BehaviorIcon behavior={b} size={14} />{b}</div>
-              <div style={{ color: 'var(--ink-dim)' }}>Chosen {stats.chosen[b]}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 6px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Teams</h3>
-        <p className="lc-faint" style={{ marginTop: 0, marginBottom: 16 }}>
-          Key: <b>Sent</b> codes this team delivered. <b>Got</b> quarters of their own piece unlocked. <b>Leans</b> the behaviour this team chose most. Green dot online, grey offline. Codes are shown here so you can help a stuck pair. Offline captains and answerers are replaced automatically after about 30 seconds.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
-          {pz.teams.map((t) => {
-            const o = t.outgoing;
-            const slow = o && o.since && now - o.since > 4 * 60 * 1000;
-            const top = BEHAVIOR_LIST.slice().sort((a, b) => (t.stats.chosen[b] || 0) - (t.stats.chosen[a] || 0))[0];
-            return (
-              <div key={t.number} style={{ padding: 14, borderRadius: 14, background: 'rgba(255,255,255,.03)', border: `1px solid ${slow ? 'rgba(255,107,107,.55)' : t.colour + '33'}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <TeamTag number={t.number} colour={t.colour} />
-                  <span style={{ marginLeft: 'auto', fontSize: 12.5, color: 'var(--ink-dim)' }}>Sent {t.sent}/4 &middot; Got {t.received}/4</span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 13 }}>
-                  <Icon name="captain" size={14} style={{ color: 'var(--gold)' }} />
-                  <select className="lc-select" value={t.captainId || ''} style={{ padding: '7px 10px', fontSize: 13, flex: 1 }}
-                    onChange={(e) => socket.emit('facilitator_puzzle_set_captain', { teamNumber: t.number, participantId: e.target.value })}>
-                    {t.members.map((m) => <option key={m.id} value={m.id}>{m.name}{m.online ? '' : ' (offline)'}</option>)}
-                  </select>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.captainOnline ? '#3ddc84' : '#666' }} />
-                </div>
-
-                {t.lockedUntil > now && <div style={{ fontSize: 12.5, color: '#ff9a9a', marginBottom: 8 }}>Code entry paused for {Math.ceil((t.lockedUntil - now) / 1000)}s (wrong codes)</div>}
-
-                {o ? (
-                  <div style={{ padding: 10, borderRadius: 10, background: 'rgba(255,255,255,.03)', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 6 }}>
-                      <span style={{ opacity: .6 }}>R{o.round}</span>
-                      <Icon name="arrow" size={13} style={{ opacity: .5 }} />
-                      <b>Team {o.toTeam}</b>
-                      <span style={{ marginLeft: 'auto', color: slow ? '#ff9a9a' : 'var(--ink-dim)', fontSize: 12 }}>{DELIVERY_STATUS_LABEL[o.status]} &middot; {minutesSince(o.since, now)}</span>
-                    </div>
-                    {o.status === 'answering' && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                        {o.answerers.map((a, i) => (
-                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 999, fontSize: 12, background: a.done ? 'rgba(61,220,132,.12)' : 'rgba(255,255,255,.05)', color: a.done ? '#3ddc84' : 'var(--ink-dim)' }}>
-                            {a.done ? <Icon name="check" size={11} stroke={2.6} /> : <span style={{ width: 6, height: 6, borderRadius: '50%', background: a.online ? '#3ddc84' : '#666' }} />}
-                            {a.name || '-'}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {o.code && <div style={{ fontSize: 13, marginTop: 4 }}>Code <b style={{ letterSpacing: 3, color: 'var(--gold)' }}>{o.code}</b></div>}
-                    <button className="lc-btn lc-btn-outline" style={{ width: '100%', padding: '7px', fontSize: 12.5, marginTop: 8 }} onClick={() => unlock(o.id, t.number, o.toTeam)}>
-                      Unlock for Team {o.toTeam}
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 13, color: 'var(--ink-dim)', marginBottom: 8 }}>{t.sent >= 4 ? 'All codes delivered' : 'Waiting'}</div>
-                )}
-
-                {t.stats.answersGiven > 0 && (
-                  <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    Leans <BehaviorIcon behavior={top} size={13} /><b style={{ color: BEHAVIOR_META[top].colour }}>{top}</b>
-                    <span style={{ marginLeft: 'auto' }}>{t.stats.answersGiven} answers</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-}
-
-/* ============================================================
-   DOWNLOADS (PDF built in the browser, no extra packages)
-   ============================================================ */
-// Each page is drawn on a canvas and embedded as a JPEG in a small PDF.
-const PDF_PAGE = { w: 842, h: 595 };          // A4 landscape in points
-const PDF_PX = { w: 1754, h: 1240 };          // ~150 dpi canvas per page
-
-function pdfFromCanvases(canvases) {
-  const enc = new TextEncoder();
-  const chunks = []; const offsets = []; let len = 0;
-  const push = (x) => { const b = typeof x === 'string' ? enc.encode(x) : x; chunks.push(b); len += b.length; };
-  const obj = (n, body) => { offsets[n] = len; push(`${n} 0 obj\n`); body(); push('\nendobj\n'); };
-  const toBytes = (url) => { const s = atob(url.split(',')[1]); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
-  push('%PDF-1.4\n%âãÏÓ\n');
-  const n = canvases.length;
-  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
-  obj(2, () => push(`<< /Type /Pages /Kids [${canvases.map((_, i) => `${3 + 3 * i} 0 R`).join(' ')}] /Count ${n} >>`));
-  canvases.forEach((c, i) => {
-    const page = 3 + 3 * i, content = page + 1, img = page + 2;
-    const jpg = toBytes(c.toDataURL('image/jpeg', 0.92));
-    const draw = `q ${PDF_PAGE.w} 0 0 ${PDF_PAGE.h} 0 0 cm /Im0 Do Q`;
-    obj(page, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PDF_PAGE.w} ${PDF_PAGE.h}] /Resources << /XObject << /Im0 ${img} 0 R >> >> /Contents ${content} 0 R >>`));
-    obj(content, () => { push(`<< /Length ${draw.length} >>\nstream\n`); push(draw); push('\nendstream'); });
-    obj(img, () => { push(`<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); push(jpg); push('\nendstream'); });
-  });
-  const total = 3 + 3 * n, xref = len;
-  let table = `xref\n0 ${total}\n0000000000 65535 f \n`;
-  for (let k = 1; k < total; k++) table += `${String(offsets[k]).padStart(10, '0')} 00000 n \n`;
-  push(table);
-  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
-  return new Blob(chunks, { type: 'application/pdf' });
-}
-
-function saveBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
-function loadImage(src) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img.naturalWidth ? img : null);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
-
-async function readyFonts() {
-  try {
-    await Promise.all(['400 20px Inter', '600 20px Inter', '600 20px Poppins', '700 20px Poppins', '800 20px Poppins'].map((f) => document.fonts.load(f)));
-  } catch (e) { /* system fonts are fine */ }
-}
-
-function newPage(bg = '#fdf8f2') {
-  const c = document.createElement('canvas');
-  c.width = PDF_PX.w; c.height = PDF_PX.h;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
-  ctx.textBaseline = 'alphabetic';
-  return { c, ctx };
-}
-
-function wrapText(ctx, text, maxW) {
-  const words = String(text || '').split(/\s+/).filter(Boolean);
-  const lines = []; let cur = '';
-  words.forEach((w) => {
-    while (ctx.measureText(w).width > maxW && w.length > 1) { // a very long word: break it
-      let k = w.length;
-      while (k > 1 && ctx.measureText((cur ? cur + ' ' : '') + w.slice(0, k)).width > maxW) k--;
-      if (k <= 1 && cur) { lines.push(cur); cur = ''; continue; }
-      lines.push((cur ? cur + ' ' : '') + w.slice(0, k)); cur = ''; w = w.slice(k);
-    }
-    const t = cur ? cur + ' ' + w : w;
-    if (ctx.measureText(t).width <= maxW) cur = t; else { if (cur) lines.push(cur); cur = w; }
-  });
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-// Draws wrapped text and returns the y below it. Cuts with "..." past maxLines.
-function drawText(ctx, text, x, y, maxW, lineH, maxLines = 99) {
-  let lines = wrapText(ctx, text, maxW);
-  if (lines.length > maxLines) {
-    lines = lines.slice(0, maxLines);
-    let last = lines[maxLines - 1];
-    while (last.length && ctx.measureText(last + '...').width > maxW) last = last.slice(0, -1);
-    lines[maxLines - 1] = last + '...';
-  }
-  lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
-  return y + lines.length * lineH;
-}
-
-function spacedLabel(ctx, text, x, y, colour, size = 22) {
-  ctx.font = `700 ${size}px Poppins, sans-serif`;
-  ctx.fillStyle = colour;
-  if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
-  ctx.fillText(text.toUpperCase(), x, y);
-  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
-}
-
-function fillRound(ctx, x, y, w, h, r, fill, stroke, lineW = 2) {
-  pathRoundRect(ctx, x, y, w, h, r);
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineW; ctx.stroke(); }
-}
-
-async function drawHeaderLogos(ctx, rightX, y, h = 46) {
-  const [carnelian, leap] = await Promise.all([loadImage('/logo.png'), loadImage('/own-the-next-logo.png')]);
-  let x = rightX;
-  if (leap) { const w = (leap.naturalWidth / leap.naturalHeight) * h; x -= w; ctx.drawImage(leap, x, y, w, h); x -= 28; }
-  else {
-    ctx.font = '800 30px Poppins, sans-serif'; ctx.textAlign = 'right';
-    ctx.fillStyle = '#2a1d14'; const leapW = ctx.measureText('Next').width;
-    ctx.fillStyle = '#e8571a'; ctx.fillText('Next', x, y + h * 0.72);
-    ctx.fillStyle = '#2a1d14'; ctx.fillText('Own the ', x - leapW, y + h * 0.72);
-    ctx.textAlign = 'left';
-    x -= ctx.measureText('Own the Next').width + 28;
-  }
-  if (carnelian) { const w = (carnelian.naturalWidth / carnelian.naturalHeight) * h; ctx.drawImage(carnelian, x - w, y, w, h); }
-}
-
-const today = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-// ---------- Code Up: behaviour stats ----------
-async function downloadBehaviourPdf(pz) {
-  await readyFonts();
-  const W = PDF_PX.w, H = PDF_PX.h, M = 90;
-  const stats = pz.stats;
-  const total = stats.answersGiven || 0;
-  const pages = [];
-
-  // Page 1: the whole room
-  {
-    const { c, ctx } = newPage();
-    ctx.fillStyle = '#e8571a'; ctx.fillRect(0, 0, W, 14);
-    await drawHeaderLogos(ctx, W - M, 54);
-    ctx.fillStyle = '#2a1d14'; ctx.font = '800 58px Poppins, sans-serif';
-    ctx.fillText('Code Up: how the room chose', M, 110);
-    ctx.fillStyle = '#7a6a5c'; ctx.font = '400 28px Inter, sans-serif';
-    ctx.fillText(`${total} decisions across ${pz.teams.length} teams  |  ${today()}`, M, 160);
-    const max = Math.max(1, ...BEHAVIOR_LIST.map((b) => stats.chosen[b] || 0));
-    const top = 230, rowH = 150, labelW = 380, barX = M + labelW, barW = W - M - barX - 280;
-    BEHAVIOR_LIST.forEach((b, i) => {
-      const y = top + i * rowH, n = stats.chosen[b] || 0, pct = total ? Math.round((n / total) * 100) : 0;
-      const col = BEHAVIOR_META[b].colour;
-      fillRound(ctx, M, y + 22, 40, 40, 10, col);
-      ctx.fillStyle = '#2a1d14'; ctx.font = '700 36px Poppins, sans-serif'; ctx.fillText(b, M + 60, y + 55);
-      fillRound(ctx, barX, y + 16, barW, 52, 26, '#efe3d6');
-      if (n) fillRound(ctx, barX, y + 16, Math.max(52, (n / max) * barW), 52, 26, col);
-      ctx.fillStyle = '#2a1d14'; ctx.font = '800 40px Poppins, sans-serif'; ctx.fillText(`${pct}%`, barX + barW + 30, y + 56);
-      ctx.fillStyle = '#7a6a5c'; ctx.font = '400 26px Inter, sans-serif'; ctx.fillText(`${n} chosen`, barX + barW + 140, y + 55);
-      ctx.fillStyle = '#e4d6c8'; ctx.fillRect(M, y + rowH - 26, W - 2 * M, 2);
-    });
-    const leader = BEHAVIOR_LIST.slice().sort((a, b) => (stats.chosen[b] || 0) - (stats.chosen[a] || 0))[0];
-    ctx.fillStyle = '#2a1d14'; ctx.font = '600 30px Inter, sans-serif';
-    ctx.fillText(total ? `The room leaned most towards ${leader}.` : 'No answers were given.', M, top + 5 * rowH + 30);
-    ctx.fillStyle = '#7a6a5c'; ctx.font = '400 24px Inter, sans-serif';
-    drawText(ctx, 'Key: % = share of all answers in the room that showed this behaviour. Chosen = number of answers that showed it. The longest bar is the behaviour chosen most; the others are drawn against it.', M, H - 90, W - 2 * M, 34);
-    pages.push(c);
-  }
-
-  // Page 2: team by team
-  {
-    const { c, ctx } = newPage();
-    ctx.fillStyle = '#e8571a'; ctx.fillRect(0, 0, W, 14);
-    ctx.fillStyle = '#2a1d14'; ctx.font = '800 46px Poppins, sans-serif';
-    ctx.fillText('Code Up: team by team', M, 96);
-    ctx.fillStyle = '#7a6a5c'; ctx.font = '400 24px Inter, sans-serif';
-    ctx.fillText('How many of each team\'s answers showed each behaviour', M, 136);
-    const cols = [{ k: 'Team', w: 170 }, { k: 'Answers', w: 150 }, ...BEHAVIOR_LIST.map((b) => ({ k: b, w: 210, b })), { k: 'Leans', w: 0 }];
-    const fixed = cols.reduce((s, x) => s + x.w, 0);
-    cols[cols.length - 1].w = W - 2 * M - fixed;
-    const teamsSorted = pz.teams.slice().sort((a, b) => a.number - b.number);
-    const headY = 180, rowH = Math.min(46, Math.floor((H - headY - 170) / (teamsSorted.length + 1)));
-    let x = M;
-    ctx.font = '700 21px Poppins, sans-serif';
-    cols.forEach((col) => {
-      ctx.fillStyle = col.b ? BEHAVIOR_META[col.b].colour : '#2a1d14';
-      ctx.fillText(col.k, x + 12, headY + rowH * 0.62); x += col.w;
-    });
-    ctx.fillStyle = '#2a1d14'; ctx.fillRect(M, headY + rowH, W - 2 * M, 2);
-    teamsSorted.forEach((t, r) => {
-      const y = headY + rowH * (r + 1) + 2;
-      if (r % 2) { ctx.fillStyle = '#f5ece2'; ctx.fillRect(M, y, W - 2 * M, rowH); }
-      const ts = t.stats || { chosen: {}, answersGiven: 0 };
-      const tTotal = ts.answersGiven || 0;
-      const lean = tTotal ? BEHAVIOR_LIST.slice().sort((a, b) => (ts.chosen[b] || 0) - (ts.chosen[a] || 0))[0] : '-';
-      let cx = M;
-      cols.forEach((col) => {
-        let txt = '';
-        if (col.k === 'Team') {
-          ctx.fillStyle = t.colour || '#888'; ctx.beginPath(); ctx.arc(cx + 22, y + rowH / 2, 8, 0, Math.PI * 2); ctx.fill();
-          txt = `Team ${t.number}`;
-          ctx.fillStyle = '#2a1d14'; ctx.font = '600 22px Inter, sans-serif'; ctx.fillText(txt, cx + 40, y + rowH * 0.66);
-        } else if (col.b) {
-          const n = ts.chosen[col.b] || 0;
-          if (n && tTotal) {
-            ctx.globalAlpha = 0.15 + 0.6 * (n / tTotal);
-            fillRound(ctx, cx + 6, y + 5, col.w - 24, rowH - 10, 8, BEHAVIOR_META[col.b].colour);
-            ctx.globalAlpha = 1;
-          }
-          ctx.fillStyle = '#2a1d14'; ctx.font = '600 22px Inter, sans-serif';
-          ctx.fillText(String(n), cx + 18, y + rowH * 0.66);
-        } else {
-          ctx.fillStyle = col.k === 'Leans' && lean !== '-' ? BEHAVIOR_META[lean].colour : '#2a1d14';
-          ctx.font = `${col.k === 'Leans' ? 700 : 600} 22px Inter, sans-serif`;
-          ctx.fillText(col.k === 'Answers' ? String(tTotal) : lean, cx + 12, y + rowH * 0.66);
-        }
-        cx += col.w;
-      });
-    });
-    ctx.fillStyle = '#7a6a5c'; ctx.font = '400 22px Inter, sans-serif';
-    drawText(ctx, 'Key: Answers = scenario answers this team gave for its partner teams. Each behaviour column = how many of those answers showed that behaviour; the darker the cell, the bigger its share of the team\'s answers. Leans = the behaviour the team chose most.', M, H - 100, W - 2 * M, 32);
-    pages.push(c);
-  }
-
-  saveBlob(pdfFromCanvases(pages), `Code Up - behaviour stats.pdf`);
-}
-
-// ---------- Own It: one page per scenario ----------
-async function drawOwnItCasePage(kase, list, membersOf, pageNo, pageCount) {
-  const { c, ctx } = newPage('#fdf8f2');
-  const W = PDF_PX.w, H = PDF_PX.h, M = 64;
-  const pm = PILLAR_META[kase.pillar] || { colour: '#888' };
-  const ink = '#2a1d14', dim = '#7a6a5c';
-  ctx.fillStyle = pm.colour; ctx.fillRect(0, 0, W, 16);
-
-  // Header
-  spacedLabel(ctx, `Own It  |  Scenario ${kase.id}  |  ${kase.pillar}`, M, 78, pm.colour, 24);
-  ctx.fillStyle = ink; ctx.font = '800 54px Poppins, sans-serif'; ctx.fillText(kase.name, M, 140);
-  ctx.fillStyle = dim; ctx.font = '400 24px Inter, sans-serif';
-  const doneN = list.filter((t) => t.done).length;
-  ctx.fillText(`${kase.pillarDetail}  |  ${doneN} of ${list.length} teams complete  |  ${today()}`, M, 182);
-  await drawHeaderLogos(ctx, W - M, 58);
-
-  // Table
-  const cols = [{ k: 'Team and members', w: 360 }, { k: 'Problem statement', w: 520 }, { k: 'Solution', w: W - 2 * M - 360 - 520 }];
-  const top = 222;
-  ctx.fillStyle = '#efe2d4'; fillRound(ctx, M, top, W - 2 * M, 48, 10, '#efe2d4');
-  let x = M;
-  cols.forEach((col) => { spacedLabel(ctx, col.k, x + 20, top + 32, '#8a5a2b', 18); x += col.w; });
-  const bodyTop = top + 58, footer = 70;
-  const rowH = Math.min(240, (H - bodyTop - footer) / Math.max(1, list.length));
-  list.forEach((t, r) => {
-    const y = bodyTop + r * rowH;
-    if (t.done) { ctx.fillStyle = 'rgba(34,179,99,.07)'; ctx.fillRect(M, y, W - 2 * M, rowH - 6); ctx.fillStyle = '#22b363'; ctx.fillRect(M, y, 6, rowH - 6); }
-    ctx.fillStyle = '#eaddcf'; ctx.fillRect(M, y + rowH - 4, W - 2 * M, 2);
-    // team + members
-    ctx.fillStyle = t.colour || '#888'; ctx.beginPath(); ctx.arc(M + 32, y + 30, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = ink; ctx.font = '800 28px Poppins, sans-serif'; ctx.fillText(`Team ${t.number}`, M + 52, y + 40);
-    ctx.fillStyle = dim; ctx.font = '400 15px Inter, sans-serif';
-    const mem = (membersOf(t.number) || []).map((m) => (m.captain ? `${m.name} (captain)` : m.name)).join(', ');
-    const memLines = Math.max(1, Math.floor((rowH - 52) / 20));
-    drawText(ctx, mem || 'No members', M + 22, y + 66, cols[0].w - 36, 20, memLines);
-    // problem + solution
-    const lineP = 30, lineS = 25;
-    const maxP = Math.max(1, Math.floor((rowH - 22) / lineP)), maxS = Math.max(1, Math.floor((rowH - 22) / lineS));
-    const px = M + cols[0].w + 20, sx = px + cols[1].w;
-    if (t.steps.problem) { ctx.fillStyle = ink; ctx.font = '700 23px Poppins, sans-serif'; drawText(ctx, t.problem, px, y + 38, cols[1].w - 40, lineP, maxP); }
-    else { ctx.fillStyle = '#b3a596'; ctx.font = 'italic 400 22px Inter, sans-serif'; ctx.fillText('Not submitted', px, y + 40); }
-    if (t.steps.solution) { ctx.fillStyle = ink; ctx.font = '400 19px Inter, sans-serif'; drawText(ctx, t.solution, sx, y + 36, cols[2].w - 30, lineS, maxS); }
-    else { ctx.fillStyle = '#b3a596'; ctx.font = 'italic 400 22px Inter, sans-serif'; ctx.fillText('Not submitted', sx, y + 40); }
-  });
-
-  ctx.fillStyle = '#b3a596'; ctx.font = '400 19px Inter, sans-serif';
-  ctx.fillText('Key: each row is one team. Green bar = the team submitted both its problem statement and its solution. "Not submitted" = that step was not sent before the download.', M, H - 32);
-  ctx.textAlign = 'right'; ctx.fillText(`${pageNo} of ${pageCount}`, W - M, H - 32); ctx.textAlign = 'left';
-  return c;
-}
-
-async function downloadOwnItCardsPdf(oi) {
-  await readyFonts();
-  const membersOf = (n) => {
-    const cap = oi.captains[n] || { members: [] };
-    return cap.members.map((m) => ({ name: m.name, captain: m.id === cap.captainId }))
-      .sort((a, b) => (b.captain - a.captain) || a.name.localeCompare(b.name));
-  };
-  const pages = [];
-  for (let i = 0; i < oi.cases.length; i++) {
-    const kase = oi.cases[i];
-    const list = oi.teams.filter((t) => t.caseId === kase.id).sort((a, b) => a.number - b.number);
-    pages.push(await drawOwnItCasePage(kase, list, membersOf, i + 1, oi.cases.length));
-  }
-  saveBlob(pdfFromCanvases(pages), 'Own It - scenario cards.pdf');
-}
-
-/* ============================================================
-   OWN IT: SHARED
-   ============================================================ */
-const PILLAR_META = {
-  Loved: { colour: '#ff5a5f', icon: 'heart' },
-  Trusted: { colour: '#e8b923', icon: 'shield' },
-  Connected: { colour: '#4cc3ff', icon: 'link' },
-};
-const OWNIT_STEPS = [
-  { key: 'problem', label: 'Problem' },
-  { key: 'solution', label: 'Solution' },
-];
-const cleanText = (v) => String(v || '').replace(/\s+/g, ' ').trim();
-
-// Scenario 1, 2, 3 keep their colour and symbol, but the pillar names
-// (Loved / Trusted / Connected) are never shown on screen.
-const CASE_META = { 1: PILLAR_META.Loved, 2: PILLAR_META.Trusted, 3: PILLAR_META.Connected };
-const metaOf = (c) => (c && (PILLAR_META[c.pillar] || CASE_META[c.id])) || { colour: '#888', icon: 'flag' };
-
-function ScenarioBadge({ c, size = 13, icon = true, style }) {
-  const m = metaOf(c);
-  return (
-    <span className="lc-badge" style={{ background: `${m.colour}1f`, color: m.colour, borderColor: `${m.colour}55`, ...style }}>
-      {icon && <Icon name={m.icon} size={size} />} Scenario {c.id}
-    </span>
-  );
-}
-
-function StepTicks({ steps = {}, size = 13, gap = 12, dim }) {
-  return (
-    <div style={{ display: 'flex', gap, flexWrap: 'wrap' }}>
-      {OWNIT_STEPS.map((s) => {
-        const on = !!steps[s.key];
-        return (
-          <span key={s.key} style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.35), fontSize: size, fontWeight: 600, color: on ? '#3ddc84' : (dim || 'rgba(245,240,232,.4)') }}>
-            <span style={{
-              width: size + 5, height: size + 5, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              background: on ? 'rgba(61,220,132,.16)' : 'transparent', border: `1.5px solid ${on ? '#3ddc84' : 'rgba(245,240,232,.25)'}`,
-            }}>{on && <Icon name="check" size={size - 2} stroke={3} />}</span>
-            {s.label}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// Read-only view of what a team has submitted so far.
-function OwnItAnswers({ problem, solution, steps = {}, waitingText = 'Not submitted yet' }) {
-  const label = { fontSize: 11.5, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 6 };
-  const waiting = <div style={{ color: 'var(--ink-faint)', fontStyle: 'italic', fontSize: 14 }}>{waitingText}</div>;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div>
-        <div style={label}>Problem</div>
-        {steps.problem ? <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.4 }}>{problem}</div> : waiting}
-      </div>
-      <div>
-        <div style={label}>Solution</div>
-        {steps.solution ? <div style={{ fontSize: 15, lineHeight: 1.45 }}>{solution}</div> : waiting}
-      </div>
-    </div>
-  );
-}
-
-function CharCount({ value, max }) {
-  const n = String(value || '').length;
-  return <div style={{ textAlign: 'right', fontSize: 12, marginTop: 5, color: n >= max ? '#ff9a9a' : n > max * 0.85 ? 'var(--gold)' : 'var(--ink-faint)' }}>{n}/{max}</div>;
-}
-
-const ownitFieldStyle = { textAlign: 'left', fontSize: 15.5, lineHeight: 1.45, padding: '13px 15px', fontFamily: 'inherit' };
-
-/* ============================================================
-   OWN IT: PARTICIPANT (phone)
-   ============================================================ */
-const EMPTY_DRAFT = { problem: '', solution: '' };
-
-function OwnItParticipant({ team, participantId }) {
-  const [me, setMe] = useState(null);
-  const [error, setError] = useState(null);
-  const [editingProblem, setEditingProblem] = useState(false);
-  const [pending, setPending] = useState(null);    // step waiting for the server
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
-  const [confirmFinal, setConfirmFinal] = useState(false);
-  const [showCase, setShowCase] = useState(true);
-  const [showTeam, setShowTeam] = useState(false);
-  const errTimer = useRef(null);
-  const pendingRef = useRef(null);
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-
-  const requestMe = useCallback(() => socket.emit('ownit_get_me', { participantId }), [participantId]);
-
-  useEffect(() => {
-    requestMe();
-    const onMe = (s) => {
-      if (!s) return;
-      const step = pendingRef.current;
-      if (step && s.steps && s.steps[step] && s[step] === cleanText(draftRef.current[step])) {
-        pendingRef.current = null; setPending(null);
-        if (step === 'problem') setEditingProblem(false);
-      }
-      setMe(s);
-    };
-    const onErr = ({ message }) => {
-      pendingRef.current = null; setPending(null);
-      setError(message);
-      clearTimeout(errTimer.current);
-      errTimer.current = setTimeout(() => setError(null), 5000);
-    };
-    const onVisible = () => { if (document.visibilityState === 'visible') requestMe(); };
-    socket.on('ownit_me', onMe);
-    socket.on('ownit_error', onErr);
-    socket.on('connect', requestMe);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      socket.off('ownit_me', onMe);
-      socket.off('ownit_error', onErr);
-      socket.off('connect', requestMe);
-      document.removeEventListener('visibilitychange', onVisible);
-      clearTimeout(errTimer.current);
-    };
-  }, [requestMe]);
-
-  // Keep the captain's typing on this phone, so a refresh or a dropped
-  // connection never loses a half-written answer.
-  const draftKey = me && me.gameId ? `ownit2_draft_${participantId}_${me.gameId}` : null;
-  useEffect(() => {
-    if (!draftKey) return;
-    let stored = null;
-    try { stored = JSON.parse(window.localStorage.getItem(draftKey)); } catch (e) { stored = null; }
-    setDraft(stored && typeof stored.problem === 'string' ? { ...EMPTY_DRAFT, ...stored } : EMPTY_DRAFT);
-    setEditingProblem(false);
-  }, [draftKey]);
-  useEffect(() => {
-    if (!draftKey) return;
-    try { window.localStorage.setItem(draftKey, JSON.stringify(draft)); } catch (e) { /* storage blocked: fine */ }
-  }, [draft, draftKey]);
-
-  // Submitted answers that are not being edited always show what the server has
-  // (this also fills the boxes for a captain who takes over mid-way).
-  useEffect(() => {
-    if (!me || !me.inPlay) return;
-    setDraft((d) => ({
-      problem: me.steps.problem && !editingProblem ? me.problem : d.problem,
-      solution: me.steps.solution ? me.solution : d.solution,
-    }));
-  }, [me, editingProblem]);
-
-  // Once the team is done, fold the case away so the confirmation sits on top.
-  const isDone = !!(me && me.done);
-  useEffect(() => { setShowCase(!isDone); }, [isDone]);
-
-  useEffect(() => {
-    if (!pending) return;
-    const id = setTimeout(() => { pendingRef.current = null; setPending(null); }, 6000);
-    return () => clearTimeout(id);
-  }, [pending]);
-
-  function submit(step) {
-    pendingRef.current = step; setPending(step); setError(null);
-    socket.emit('ownit_submit', { participantId, step, [step]: draft[step] });
-  }
-
-  const colour = (me && me.colour) || team.colour;
-  const teamNumber = (me && me.teamNumber) || team.number;
-  const header = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, paddingRight: 84 }}>
-      <img src="/logo.png" alt="" style={{ height: 32 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span className="lc-badge" style={{ background: `${colour}22`, color: colour, borderColor: `${colour}55` }}>Team {teamNumber}</span>
-        {me && me.isCaptain && (
-          <span className="lc-badge" style={{ background: 'rgba(232,185,35,.15)', color: 'var(--gold)', borderColor: 'rgba(232,185,35,.3)' }}>
-            <Icon name="captain" size={13} /> Captain
-          </span>
-        )}
-      </div>
-    </div>
-  );
-  const shell = (children) => (
-    <div className="lc-root">
-      <div className="lc-glow" />
-      <ConnectionPill />
-      <div className="lc-content" style={{ minHeight: '100dvh', padding: '26px 16px 56px', maxWidth: 480, margin: '0 auto' }}>
-        {header}
-        {children}
-      </div>
-    </div>
-  );
-
-  if (!me) {
-    return shell(
-      <div style={{ textAlign: 'center', marginTop: 60 }}>
-        <div className="lc-pulse-dot" style={{ margin: '0 auto 20px' }} />
-        <p className="lc-sub">Loading your case...</p>
-      </div>
-    );
-  }
-  if (!me.inPlay) {
-    return shell(
-      <div className="lc-card" style={{ padding: 22, textAlign: 'center' }}>
-        <p style={{ margin: 0 }}>You're not on a team for Own It. Please find the facilitator.</p>
-      </div>
-    );
-  }
-
-  const c = me.case;
-  const pm = metaOf(c);
-  const lim = me.limits || { problem: 80, text: 300 };
-  const isCap = me.isCaptain;
-  const stepCard = (n, title, enabled, children, extra) => (
-    <div className="lc-card" style={{ padding: 18, marginBottom: 14, opacity: enabled ? 1 : 0.5, ...extra }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, background: 'rgba(232,87,26,.18)', color: 'var(--carnelian-bright)' }}>{n}</span>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>{title}</span>
-      </div>
-      {children}
-    </div>
-  );
-  const busy = (step) => pending === step;
-
-  return shell(
-    <>
-      <h1 className="lc-h1" style={{ fontSize: 24, marginBottom: 6 }}>Own It</h1>
-      <p className="lc-faint" style={{ marginTop: 0, marginBottom: 18 }}>Being the most loved, trusted and connected brand.</p>
-
-      {error && (
-        <div className="lc-card lc-fadein" style={{ padding: '13px 16px', marginBottom: 14, border: '1px solid #a83232', display: 'flex', gap: 10, alignItems: 'center', color: '#ff9a9a' }}>
-          <Icon name="alert" size={18} /><span>{error}</span>
-        </div>
-      )}
-
-      {/* The case */}
-      <div className="lc-card" style={{ padding: 18, marginBottom: 14, border: `1px solid ${pm.colour}55` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <ScenarioBadge c={c} icon={false} />
-        </div>
-        <button onClick={() => setShowCase((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, textAlign: 'left' }}>
-          <span className="lc-h2" style={{ margin: 0, fontSize: 21, flex: 1 }}>{c.name}</span>
-          <Icon name="chevron" size={18} style={{ transform: showCase ? 'rotate(180deg)' : 'none', transition: 'transform .2s', opacity: 0.6 }} />
-        </button>
-        {showCase && (
-          <div className="lc-fadein">
-            <p style={{ fontSize: 15.5, lineHeight: 1.55, margin: '12px 0 0' }}>{c.text}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Progress */}
-      <div className="lc-card" style={{ padding: '14px 18px', marginBottom: 14 }}>
-        <StepTicks steps={me.steps} size={13} gap={16} dim="var(--ink-faint)" />
-      </div>
-
-      {me.done ? (
-        <>
-          <div className="lc-card lc-pop" style={{ padding: 24, marginBottom: 14, textAlign: 'center', border: '1px solid rgba(61,220,132,.45)' }}>
-            <div style={{ width: 54, height: 54, borderRadius: '50%', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(61,220,132,.15)', color: '#3ddc84' }}>
-              <Icon name="check" size={30} stroke={2.6} />
-            </div>
-            <h2 className="lc-h2" style={{ margin: '0 0 6px' }}>Submitted</h2>
-            <p className="lc-sub" style={{ margin: 0 }}>Your team's problem and solution are locked in and on the big screen. Well done.</p>
-          </div>
-          <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-            <OwnItAnswers problem={me.problem} solution={me.solution} steps={me.steps} />
-          </div>
-        </>
-      ) : !isCap ? (
-        <>
-          <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-            <SectionTitle icon="users">Brainstorm with your team</SectionTitle>
-            <p style={{ margin: 0, color: 'var(--ink-dim)', lineHeight: 1.5, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <Icon name="captain" size={16} style={{ marginTop: 3, color: 'var(--gold)' }} />
-              <span>{me.captainName || 'Your captain'} submits for your team: first the problem in one line, then your solution.{me.captainOnline ? '' : ' If your captain stays offline, the role moves to someone else automatically.'}</span>
-            </p>
-          </div>
-          <div className="lc-card" style={{ padding: 18, marginBottom: 14 }}>
-            <OwnItAnswers problem={me.problem} solution={me.solution} steps={me.steps} waitingText="Waiting for your captain" />
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Step 1 */}
-          {stepCard(1, 'Problem statement', true, (
-            me.steps.problem && !editingProblem ? (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.4 }}>{me.problem}</div>
-                <button className="lc-btn lc-btn-outline" style={{ padding: '9px 14px', fontSize: 13.5, marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                  onClick={() => setEditingProblem(true)}><Icon name="edit" size={15} /> Edit</button>
-              </>
-            ) : (
-              <>
-                <p style={{ margin: '0 0 10px', color: 'var(--ink-dim)' }}>State the core problem in one line.</p>
-                <input className="lc-input" value={draft.problem} maxLength={lim.problem} placeholder={c.placeholder} style={ownitFieldStyle}
-                  onChange={(e) => setDraft((d) => ({ ...d, problem: e.target.value.replace(/[\r\n]+/g, ' ') }))} />
-                <CharCount value={draft.problem} max={lim.problem} />
-                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                  {editingProblem && <button className="lc-btn lc-btn-outline" style={{ flex: '0 0 auto', padding: '12px 16px' }} onClick={() => setEditingProblem(false)}>Cancel</button>}
-                  <button className="lc-btn lc-btn-primary" style={{ flex: 1 }} disabled={!cleanText(draft.problem) || busy('problem')} onClick={() => submit('problem')}>
-                    {busy('problem') ? 'Saving...' : editingProblem ? 'Save problem' : 'Submit problem'}
-                  </button>
-                </div>
-              </>
-            )
-          ))}
-
-          {/* Step 2 */}
-          {stepCard(2, 'Your solution', me.steps.problem, (
-            !me.steps.problem ? (
-              <p style={{ margin: 0, color: 'var(--ink-faint)' }}>Submit the problem statement first.</p>
-            ) : (
-              <>
-                <p style={{ margin: '0 0 10px', color: 'var(--ink-dim)' }}>What will your team do about it?</p>
-                <textarea className="lc-input" rows={5} value={draft.solution} maxLength={lim.text} style={{ ...ownitFieldStyle, resize: 'vertical' }}
-                  onChange={(e) => setDraft((d) => ({ ...d, solution: e.target.value }))} />
-                <CharCount value={draft.solution} max={lim.text} />
-                <button className="lc-btn lc-btn-gold" style={{ width: '100%', marginTop: 10 }} disabled={!cleanText(draft.solution) || busy('solution') || editingProblem} onClick={() => setConfirmFinal(true)}>
-                  {busy('solution') ? 'Submitting...' : 'Submit solution'}
-                </button>
-                <p className="lc-faint" style={{ marginBottom: 0 }}>You can still edit the problem above until you submit the solution. After that, both lock.</p>
-              </>
-            )
-          ), { border: me.steps.problem ? '1px solid rgba(232,185,35,.35)' : undefined })}
-        </>
-      )}
-
-      {/* Team */}
-      <div className="lc-card" style={{ padding: '14px 18px' }}>
-        <button onClick={() => setShowTeam((s) => !s)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', color: 'var(--ink)', cursor: 'pointer', padding: 0, fontSize: 14, fontWeight: 600 }}>
-          <Icon name="users" size={16} style={{ color: 'var(--gold)' }} /> My team
-          <Icon name="chevron" size={16} style={{ marginLeft: 'auto', transform: showTeam ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
-        </button>
-        {showTeam && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
-            {(me.members || []).map((m, i) => (
-              <div key={i} className="lc-teammate" style={{ animationDelay: `${i * 40}ms` }}>{m.name}{m.isMe ? ' (you)' : ''}{m.isCaptain ? '  (captain)' : ''}</div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <ConfirmModal
-        open={confirmFinal}
-        title="Submit your solution?"
-        message="Once this is in, your team's problem and solution lock and appear as complete on the big screen."
-        confirmLabel="Submit"
-        onCancel={() => setConfirmFinal(false)}
-        onConfirm={() => { setConfirmFinal(false); submit('solution'); }}
-      />
-    </>
-  );
-}
-
-/* ============================================================
-   OWN IT: PROJECTOR
-   ============================================================ */
-function EventBrand({ height = 34 }) {
-  const [img, setImg] = useState(true);
-  if (img) return <img src="/own-the-next-logo.png" alt="Own the Next" style={{ height }} onError={() => setImg(false)} />;
-  return (
-    <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>
-      Own the <span style={{ color: '#e8571a' }}>Next</span>
-    </span>
-  );
-}
-
-function OwnItSpotlight({ team, kase, onClose }) {
-  const pm = metaOf(kase);
-  const label = { fontSize: 'clamp(12px,.95vw,17px)', letterSpacing: '.2em', textTransform: 'uppercase', color: 'rgba(232,185,35,.9)', fontWeight: 700, marginBottom: 12 };
-  return (
-    <div className="lc-fadein" onClick={onClose} style={{
-      position: 'absolute', inset: 0, zIndex: 30, background: '#07080b', cursor: 'pointer',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5vh 6vw',
-    }}>
-      <div style={{ width: 'min(1500px, 100%)', maxHeight: '100%', overflow: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: '4vh', flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(26px,2.6vw,46px)', color: team.colour }}>
-            <span style={{ width: 18, height: 18, borderRadius: '50%', background: team.colour, boxShadow: `0 0 18px ${team.colour}` }} />Team {team.number}
-          </span>
-          {kase && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 'clamp(16px,1.3vw,24px)', color: pm.colour, fontWeight: 700 }}>
-              <Icon name={pm.icon} size={24} /> Scenario {kase.id} <span style={{ color: 'rgba(245,240,232,.6)', fontWeight: 500 }}>&middot; {kase.name}</span>
-            </span>
-          )}
-          <span style={{ marginLeft: 'auto', color: 'rgba(245,240,232,.4)', display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 }}><Icon name="x" size={18} /> Close</span>
-        </div>
-        <div style={label}>The problem</div>
-        <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 'clamp(28px,3vw,58px)', lineHeight: 1.2, marginBottom: '5vh' }}>
-          {team.steps.problem ? team.problem : <span style={{ opacity: 0.4 }}>Not submitted yet</span>}
-        </div>
-        <div style={{ padding: '3vh 2.4vw', borderRadius: 22, background: 'rgba(232,185,35,.07)', border: '1px solid rgba(232,185,35,.35)' }}>
-          <div style={label}>Their solution</div>
-          <div style={{ fontSize: 'clamp(20px,1.9vw,36px)', lineHeight: 1.45 }}>
-            {team.steps.solution ? team.solution : <span style={{ opacity: 0.4 }}>Not submitted yet</span>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Full screen for the projector laptop (hides the browser bars). F key too.
 function useFullscreen() {
@@ -2078,350 +573,6 @@ function FullscreenButton({ compact }) {
     </button>
   );
 }
-
-const SKIN = '#f7e6d3', INK = '#2a1d14';
-const upLabel = (size, colour) => ({ fontSize: size, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: colour, lineHeight: 1.2 });
-
-// Grows or shrinks the text inside `el` (via the CSS variable --s) until the
-// content fills the box without overflowing. Nothing is ever cut off: if the
-// answers are long, the text gets smaller instead.
-function useFitText(key) {
-  const ref = useRef(null);
-  const fit = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const fits = (s) => { el.style.setProperty('--s', s); return el.scrollHeight <= el.clientHeight + 1; };
-    let lo = 0.3, hi = 2.6;
-    if (fits(hi)) return;
-    for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (fits(m)) lo = m; else hi = m; }
-    fits(lo);
-  }, []);
-  useLayoutEffect(() => { fit(); }, [fit, key]);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    let ro = null;
-    if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => fit()); ro.observe(el); }
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit).catch(() => {});
-    return () => { if (ro) ro.disconnect(); };
-  }, [fit]);
-  return ref;
-}
-
-const sx = (n) => `calc(var(--s) * ${n}px)`;
-
-// One team inside a scenario card: the full problem and the full solution.
-// `wide` = the one-case view (problem and solution side by side).
-function OwnItRow({ t, wide, onOpen }) {
-  return (
-    <button onClick={onOpen} style={{
-      display: wide ? 'grid' : 'flex', gridTemplateColumns: wide ? `${sx(78)} 1fr 1.3fr` : undefined, alignItems: wide ? 'center' : 'flex-start',
-      gap: wide ? sx(26) : sx(12), width: 'auto', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: INK,
-      margin: `${sx(4)} ${sx(8)}`, padding: `${sx(9)} ${sx(12)}`, borderRadius: sx(12), border: 'none',
-      background: t.done ? 'rgba(34,179,99,.11)' : 'rgba(42,29,20,.035)',
-      boxShadow: t.done ? '0 0 0 2px #2ecc71, 0 0 16px rgba(46,204,113,.55)' : 'inset 0 0 0 1px rgba(42,29,20,.08)',
-      transition: 'background .4s, box-shadow .4s',
-    }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: sx(6), flexShrink: 0, width: wide ? 'auto' : sx(46), paddingTop: wide ? 0 : sx(3), ...upLabel(sx(wide ? 14 : 12.5), 'rgba(42,29,20,.75)'), letterSpacing: '.06em', whiteSpace: 'nowrap' }}>
-        <span style={{ width: sx(10), height: sx(10), borderRadius: '50%', flexShrink: 0, background: t.colour, boxShadow: '0 0 0 2px rgba(42,29,20,.12)' }} />
-        {wide ? `Team ${t.number}` : `T${t.number}`}
-      </span>
-      {wide ? (
-        <>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: sx(20), lineHeight: 1.25, overflowWrap: 'anywhere' }}>{t.problem}</span>
-          <span style={{ fontSize: sx(17), lineHeight: 1.42, overflowWrap: 'anywhere', ...(t.steps.solution ? {} : { fontStyle: 'italic', color: 'rgba(42,29,20,.45)' }) }}>{t.steps.solution ? t.solution : 'Writing the solution...'}</span>
-        </>
-      ) : (
-        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: sx(4) }}>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: sx(17), lineHeight: 1.25, overflowWrap: 'anywhere' }}>{t.problem}</span>
-          <span style={{ fontSize: sx(15), lineHeight: 1.42, overflowWrap: 'anywhere', ...(t.steps.solution ? { color: '#3a2a1e' } : { fontStyle: 'italic', color: 'rgba(42,29,20,.45)' }) }}>{t.steps.solution ? t.solution : 'Writing the solution...'}</span>
-        </span>
-      )}
-    </button>
-  );
-}
-
-// One scenario = one card. Teams with answers get all the space; teams that
-// have not sent anything yet wait in a slim strip at the bottom.
-function OwnItCaseCard({ c, list, f, wide, onOpen, onPick }) {
-  const pm = metaOf(c);
-  const done = list.filter((t) => t.done).length;
-  const allDone = list.length > 0 && done === list.length;
-  const shown = list.filter((t) => t.steps.problem);
-  const thinking = list.filter((t) => !t.steps.problem);
-  const contentKey = shown.map((t) => `${t.number}|${t.problem}|${t.solution}|${t.done}`).join('~');
-  const fitRef = useFitText(`${contentKey}#${wide ? 1 : 0}#${thinking.length}`);
-  return (
-    <div className={allDone ? 'lc-card-done' : ''} style={{
-      height: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', borderRadius: f(18), overflow: 'hidden',
-      background: SKIN, border: `2px solid ${allDone ? '#2ecc71' : 'rgba(255,255,255,.06)'}`,
-    }}>
-      <div onClick={onPick} style={{ flexShrink: 0, cursor: onPick ? 'pointer' : 'default', background: `linear-gradient(135deg, ${pm.colour}, ${pm.colour}cc)`, color: '#120d09' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: f(12), padding: `${f(wide ? 12 : 10)}px ${f(16)}px` }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: f(6), ...upLabel(f(wide ? 13 : 11.5), 'rgba(18,13,9,.8)'), whiteSpace: 'nowrap' }}><Icon name={pm.icon} size={f(wide ? 17 : 15)} stroke={2.4} />Scenario {c.id}</span>
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: f(wide ? 26 : 21), lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.name}</span>
-          <span style={{ marginLeft: 'auto', fontSize: f(wide ? 15 : 13), fontWeight: 700, color: 'rgba(18,13,9,.75)', whiteSpace: 'nowrap' }}>{done} of {list.length} complete</span>
-        </div>
-        <div style={{ height: Math.max(3, f(4)), background: 'rgba(18,13,9,.18)' }}>
-          <div style={{ height: '100%', width: `${list.length ? (done / list.length) * 100 : 0}%`, background: '#120d09', transition: 'width .6s' }} />
-        </div>
-      </div>
-      <div ref={fitRef} style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: shown.length ? 'space-evenly' : 'center', padding: `${f(6)}px 0` }}>
-        {shown.length === 0 ? (
-          <div style={{ textAlign: 'center', fontStyle: 'italic', fontSize: f(wide ? 26 : 19), color: 'rgba(42,29,20,.45)', padding: f(20) }}>Teams are working on their problem statements...</div>
-        ) : (
-          <>
-            {wide && (
-              <div style={{ display: 'grid', gridTemplateColumns: `${sx(78)} 1fr 1.3fr`, gap: sx(26), margin: `0 ${sx(8)}`, padding: `${sx(2)} ${sx(12)}` }}>
-                {['Team', 'Problem statement', 'Solution'].map((h, i) => <span key={h} style={upLabel(sx(10.5), i === 1 ? '#b2400f' : i === 2 ? '#8a6a00' : 'rgba(42,29,20,.5)')}>{h}</span>)}
-              </div>
-            )}
-            {shown.map((t) => <OwnItRow key={t.number} t={t} wide={wide} onOpen={() => onOpen(t.number)} />)}
-          </>
-        )}
-      </div>
-      {thinking.length > 0 && (
-        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: f(8), flexWrap: 'wrap', padding: `${f(9)}px ${f(16)}px`, background: 'rgba(42,29,20,.07)', borderTop: '1px solid rgba(42,29,20,.08)' }}>
-          <span style={{ fontSize: f(wide ? 15 : 13), fontWeight: 600, color: 'rgba(42,29,20,.6)', marginRight: f(2) }}>Still thinking:</span>
-          {thinking.map((t) => (
-            <button key={t.number} onClick={() => onOpen(t.number)} style={{ display: 'inline-flex', alignItems: 'center', gap: f(6), padding: `${f(4)}px ${f(10)}px`, borderRadius: 99, border: 'none', cursor: 'pointer', background: 'rgba(42,29,20,.09)', fontFamily: 'inherit', fontSize: f(wide ? 14 : 12.5), fontWeight: 800, color: 'rgba(42,29,20,.75)' }}>
-              <span style={{ width: f(8), height: f(8), borderRadius: '50%', background: t.colour }} />{wide ? `Team ${t.number}` : `T${t.number}`}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OwnItProjector({ board }) {
-  const [qrOpen, setQrOpen] = useState(false);
-  const [view, setView] = useState('all'); // 'all' | 1 | 2 | 3 (one case at a time)
-  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
-  const [localOpen, setLocalOpen] = useState(null);
-  const [dismissed, setDismissed] = useState(null);
-  const [, toggleFs] = useFullscreen();
-  useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  const spotlight = board ? board.spotlight : null;
-  useEffect(() => { setDismissed(null); setLocalOpen(null); }, [spotlight]);
-  // The facilitator console picks what the projector shows; the tabs and keys
-  // here still work locally until the console changes it again.
-  const remoteView = board ? (board.view || 'all') : 'all';
-  useEffect(() => { setView(remoteView); }, [remoteView]);
-  const openNumber = localOpen != null ? localOpen : (spotlight != null && spotlight !== dismissed ? spotlight : null);
-
-  // Keys on the projector laptop: Esc closes a team, 0 = all cases, 1/2/3 = one case, F = full screen.
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape' && openNumber != null) { setLocalOpen(null); setDismissed(spotlight); return; }
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === '0' || e.key.toLowerCase() === 'a') setView('all');
-      else if (['1', '2', '3'].includes(e.key)) setView(Number(e.key));
-      else if (e.key.toLowerCase() === 'f') toggleFs();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [openNumber, spotlight, toggleFs]);
-
-  // Everything scales with the screen, designed at 1920 x 1080.
-  const k = Math.min(size.w / 1920, size.h / 1080);
-  const fk = Math.max(0.72, Math.min(1.5, k));
-  const f = (n) => Math.round(n * fk * 10) / 10;
-  const compactBar = size.w < 1500;
-  const cases = board ? board.cases : [];
-  const rows = cases.map((c) => ({ c, teams: board.teams.filter((t) => t.caseId === c.id) }));
-  const openTeam = openNumber != null && board ? board.teams.find((t) => t.number === openNumber) : null;
-  const openCase = openTeam ? cases.find((c) => c.id === openTeam.caseId) : null;
-  const pad = Math.round(16 * fk), gap = Math.round(14 * fk);
-  const focusRow = view !== 'all' ? rows.find((r) => r.c.id === view) : null;
-
-  const tab = (key, label, icon, colour) => {
-    const active = view === key;
-    return (
-      <button key={String(key)} onClick={() => setView(key)} title={key === 'all' ? 'All cases (0)' : `${label} (${key})`} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, padding: compactBar ? '6px 9px' : '6px 12px', borderRadius: 999, cursor: 'pointer',
-        border: 'none', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', fontFamily: "'Inter',sans-serif",
-        background: active ? (colour || '#e8571a') : 'transparent', color: active ? '#120d09' : 'rgba(245,240,232,.7)',
-      }}>
-        {icon && <Icon name={icon} size={14} stroke={2.2} />}{(!compactBar || key === 'all') && label}
-      </button>
-    );
-  };
-
-  return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: 'radial-gradient(ellipse at top, #1a1410 0%, #07080b 60%)', color: '#f5f0e8', fontFamily: "'Inter',sans-serif" }}>
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: TOP_BAR_HEIGHT, zIndex: 15,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: compactBar ? '0 16px' : '0 28px',
-        background: '#0d0e12', borderBottom: '2px solid #e8571a',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-          <img src="/logo.png" alt="Carnelian" style={{ height: compactBar ? 32 : 38 }} />
-          <span style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' }}>Own It</span>
-          <div style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: 'rgba(255,255,255,.06)', marginLeft: 6 }}>
-            {tab('all', 'All cases')}
-            {cases.map((c) => tab(c.id, `Scenario ${c.id}`, metaOf(c).icon, metaOf(c).colour))}
-          </div>
-        </div>
-        <div style={{ textAlign: 'center', fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap' }}>
-          <span style={{ color: '#e8571a' }}>{board ? board.completeCount : 0}</span>
-          <span style={{ color: 'rgba(245,240,232,.55)', marginLeft: 6 }}>of {board ? board.total : 20} {compactBar ? 'done' : 'teams complete'}</span>
-        </div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: compactBar ? 10 : 16 }}>
-          <EventBrand height={compactBar ? 28 : 34} />
-          <QrButton open={qrOpen} onClick={() => setQrOpen((o) => !o)} />
-          <FullscreenButton compact={compactBar} />
-        </div>
-      </div>
-      <QrPanel open={qrOpen} onClose={() => setQrOpen(false)} joinUrl={JOIN_URL} />
-
-      <div style={{ position: 'absolute', top: TOP_BAR_HEIGHT + pad, left: pad, right: pad, bottom: pad }}>
-        {!board && <div style={{ color: 'rgba(245,240,232,.5)' }}>Loading...</div>}
-        {view === 'all' && (
-          <div style={{ height: '100%', display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, rows.length)}, minmax(0, 1fr))`, gap }}>
-            {rows.map(({ c, teams: list }) => (
-              <OwnItCaseCard key={c.id} c={c} list={list} f={f} onOpen={setLocalOpen} onPick={() => setView(c.id)} />
-            ))}
-          </div>
-        )}
-        {focusRow && <OwnItCaseCard c={focusRow.c} list={focusRow.teams} f={f} wide onOpen={setLocalOpen} />}
-      </div>
-
-      {openTeam && <OwnItSpotlight team={openTeam} kase={openCase} onClose={() => { setLocalOpen(null); setDismissed(spotlight); }} />}
-    </div>
-  );
-}
-
-/* ============================================================
-   OWN IT: FACILITATOR
-   ============================================================ */
-function OwnItFacilitatorPanel({ oi, onConfirm }) {
-  const [busy, setBusy] = useState(false);
-  if (!oi) return <div className="lc-card" style={{ padding: 24 }}><p className="lc-faint" style={{ margin: 0 }}>Loading Own It...</p></div>;
-  const count = (k) => oi.teams.filter((t) => t.steps[k]).length;
-  const allDone = oi.total > 0 && oi.completeCount === oi.total;
-  async function downloadCards() {
-    setBusy(true);
-    try { await downloadOwnItCardsPdf(oi); } finally { setBusy(false); }
-  }
-
-  return (
-    <>
-      <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
-        <div className="lc-stat-card"><div className="lc-stat-label">Teams complete</div><div className="lc-stat-value">{oi.completeCount}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{oi.total}</span></div>
-          <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${oi.total ? (oi.completeCount / oi.total) * 100 : 0}%` }} /></div></div>
-        <div className="lc-stat-card"><div className="lc-stat-label">Problems in</div><div className="lc-stat-value">{count('problem')}</div></div>
-        <div className="lc-stat-card"><div className="lc-stat-label">Solutions in</div><div className="lc-stat-value">{count('solution')}</div></div>
-      </div>
-
-      <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-        <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 12px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Projector shows</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          {[{ id: 'all', label: 'All 3 cards' }, ...oi.cases.map((c) => ({ id: c.id, label: `Scenario ${c.id}: ${c.name}`, c }))].map((v) => {
-            const active = (oi.view || 'all') === v.id;
-            const pm = v.c ? metaOf(v.c) : null;
-            const col = pm ? pm.colour : '#e8571a';
-            return (
-              <button key={String(v.id)} onClick={() => socket.emit('facilitator_ownit_view', { view: v.id })} style={{
-                flex: '1 1 180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
-                border: `1.5px solid ${active ? col : 'rgba(255,255,255,.12)'}`, background: active ? `${col}26` : 'rgba(255,255,255,.03)', color: active ? col : 'var(--ink)',
-              }}>
-                {pm && <Icon name={pm.icon} size={16} stroke={2.2} />}{v.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="lc-btn-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button className={`lc-btn ${allDone ? 'lc-btn-gold' : 'lc-btn-outline'}`} style={{ flex: '1 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} disabled={busy}
-            onClick={() => (allDone ? downloadCards() : onConfirm({
-              title: 'Not every team is complete',
-              message: `${oi.completeCount} of ${oi.total} teams are complete. Download the cards anyway? Steps a team has not submitted show as "Not submitted".`,
-              confirmLabel: 'Download anyway',
-              onConfirm: downloadCards,
-            }))}>
-            <Icon name="download" size={18} /> {busy ? 'Preparing PDF...' : 'Download all cards'}
-          </button>
-          {oi.spotlight != null && (
-            <button className="lc-btn lc-btn-gold" style={{ flex: '1 1 220px' }} onClick={() => socket.emit('facilitator_ownit_spotlight', { teamNumber: null })}>
-              Close Team {oi.spotlight} on projector
-            </button>
-          )}
-          <button className="lc-btn lc-btn-outline" style={{ flex: '1 1 180px' }} onClick={() => onConfirm({
-            title: 'Restart Own It?',
-            message: 'Cases are drawn again at random and every team\'s answers are cleared. Teams and captains stay as they are.',
-            confirmLabel: 'Restart Own It', danger: true,
-            onConfirm: () => socket.emit('facilitator_restart_ownit'),
-          })}>Restart Own It</button>
-        </div>
-        <p className="lc-faint" style={{ marginBottom: 0 }}>
-          Key: ticks show what each team has submitted (Problem, Solution). A team is complete once its solution is in, and its answers lock. <b>Projector shows</b> switches the projector between all 3 scenario cards and one card full width. <b>Download all cards</b> saves one PDF page per scenario with every team's problem, solution and member names. <b>Reopen</b> unlocks a complete team so its captain can change answers. <b>Show on projector</b> opens that team full screen for the debrief. Green dot online, grey offline. Offline captains are replaced automatically after about 30 seconds.
-        </p>
-      </div>
-
-      {oi.cases.map((c) => {
-        const list = oi.teams.filter((t) => t.caseId === c.id);
-        return (
-          <div key={c.id} className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-              <ScenarioBadge c={c} />
-              <span style={{ fontWeight: 700, fontSize: 17 }}>{c.name}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--ink-dim)' }}>{list.filter((t) => t.done).length} of {list.length} complete</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
-              {list.map((t) => {
-                const cap = oi.captains[t.number] || { members: [] };
-                const status = t.done ? 'Complete' : t.steps.problem ? 'Writing solution' : 'Brainstorming';
-                const onAir = oi.spotlight === t.number;
-                return (
-                  <div key={t.number} style={{ padding: 14, borderRadius: 14, background: 'rgba(255,255,255,.03)', border: `1px solid ${onAir ? 'var(--gold)' : t.done ? 'rgba(61,220,132,.45)' : t.colour + '33'}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <TeamTag number={t.number} colour={t.colour} />
-                      <span style={{ marginLeft: 'auto', fontSize: 12.5, color: t.done ? '#3ddc84' : 'var(--ink-dim)' }}>{status}</span>
-                    </div>
-                    <div style={{ marginBottom: 10 }}><StepTicks steps={t.steps} size={12} gap={10} dim="var(--ink-faint)" /></div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 13 }}>
-                      <Icon name="captain" size={14} style={{ color: 'var(--gold)' }} />
-                      <select className="lc-select" value={cap.captainId || ''} style={{ padding: '7px 10px', fontSize: 13, flex: 1 }}
-                        onChange={(e) => socket.emit('facilitator_ownit_set_captain', { teamNumber: t.number, participantId: e.target.value })}>
-                        {cap.members.map((m) => <option key={m.id} value={m.id}>{m.name}{m.online ? '' : ' (offline)'}</option>)}
-                      </select>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: cap.captainOnline ? '#3ddc84' : '#666' }} />
-                    </div>
-                    {(t.steps.problem || t.steps.solution) && (
-                      <div style={{ padding: 12, borderRadius: 10, background: 'rgba(255,255,255,.03)', marginBottom: 10 }}>
-                        <OwnItAnswers problem={t.problem} solution={t.solution} steps={t.steps} waitingText="Not yet" />
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className={`lc-btn ${onAir ? 'lc-btn-gold' : 'lc-btn-outline'}`} style={{ flex: 1, padding: '7px', fontSize: 12.5 }}
-                        onClick={() => socket.emit('facilitator_ownit_spotlight', { teamNumber: onAir ? null : t.number })}>
-                        {onAir ? 'Close on projector' : 'Show on projector'}
-                      </button>
-                      {t.done && (
-                        <button className="lc-btn lc-btn-outline" style={{ flex: '0 0 auto', padding: '7px 12px', fontSize: 12.5 }} onClick={() => onConfirm({
-                          title: `Reopen Team ${t.number}?`,
-                          message: 'Their captain can change the problem and solution again. The team shows as not complete until they submit the solution again.',
-                          confirmLabel: 'Reopen',
-                          onConfirm: () => socket.emit('facilitator_ownit_reopen', { teamNumber: t.number }),
-                        })}>Reopen</button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
 /* ============================================================
    PROJECTOR VIEW
    ============================================================ */
@@ -2435,22 +586,6 @@ function QrIcon({ size = 16 }) {
     </svg>
   );
 }
-
-// The QR button on every projector top bar, so anyone who got logged out can
-// scan again in any activity.
-function QrButton({ open, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
-      border: `1px solid ${open ? '#e8571a' : 'rgba(255,255,255,.2)'}`,
-      background: open ? 'rgba(232,87,26,.18)' : 'rgba(255,255,255,.04)',
-      color: '#f5f0e8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: "'Inter',sans-serif",
-    }}>
-      <QrIcon size={15} /> {open ? 'Hide QR' : 'QR code'}
-    </button>
-  );
-}
-const JOIN_URL = `${window.location.origin}/`;
 
 // Docked to the right edge under the top bar, not centred, so the room can
 // still watch the nodes arrive while late joiners scan.
@@ -2504,10 +639,10 @@ function truncateToWidth(ctx, text, maxWidth) {
   return t + '…';
 }
 
-// Grid cell for team block i: 5 columns, as many rows as the team count
-// needs (10 teams = 2 rows, 20 teams = 4 rows), offset below the top bar.
-function teamBlockRect(i, w, h, count = 10) {
-  const cols = 5;
+// Grid cell for team block i: one row of up to 4 tall columns (4 teams),
+// more rows only if the team count ever goes above 4.
+function teamBlockRect(i, w, h, count = 4) {
+  const cols = Math.max(1, Math.min(4, count));
   const rows = Math.max(1, Math.ceil(count / cols));
   const topOffset = TOP_BAR_HEIGHT + 14;
   const margin = Math.max(16, w * 0.012);
@@ -2531,8 +666,6 @@ function ProjectorView() {
   const lastFrameTsRef = useRef(null);
   const dims = useRef({ w: window.innerWidth, h: window.innerHeight });
 
-  const [activity, setActivity] = useState('constellation');
-  const activityRef = useRef('constellation');
   const [sessionState, setSessionState] = useState('idle');
   const [joinedCount, setJoinedCount] = useState(0);
   const [submittedCount, setSubmittedCount] = useState(0);
@@ -2542,14 +675,10 @@ function ProjectorView() {
   const qrOpenRef = useRef(false);
   useEffect(() => { qrOpenRef.current = qrOpen; }, [qrOpen]);
 
-  const [board, setBoard] = useState(null);
-  const [ownitBoard, setOwnitBoard] = useState(null);
-
   const joinUrl = `${window.location.origin}/`;
 
   useEffect(() => { stateRef.current = sessionState; }, [sessionState]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
-  useEffect(() => { activityRef.current = activity; }, [activity]);
 
   const ensureNode = useCallback((id, name) => {
     let node = nodesRef.current.find((n) => n.id === id);
@@ -2721,10 +850,6 @@ function ProjectorView() {
     }
 
     function draw(ts) {
-      if (activityRef.current === 'puzzle') {
-        rafRef.current = requestAnimationFrame(draw);
-        return;
-      }
       const { w, h } = dims.current;
       const now = Date.now();
       const dt = Math.min(lastFrameTsRef.current ? (ts - lastFrameTsRef.current) / 1000 : 0.016, 0.05);
@@ -2881,7 +1006,6 @@ function ProjectorView() {
     }
 
     socket.on('state_sync', (state) => {
-      setActivity(state.session.activity || 'constellation');
       setJoinedCount(Object.keys(state.participants).length);
       setSessionState(state.session.state);
       setTeams(state.teams);
@@ -2896,8 +1020,6 @@ function ProjectorView() {
         updatePhysicsForPhase();
         applyTeamPositions(state.teams);
       }
-      setBoard(state.puzzle || null);
-      if (state.ownit) setOwnitBoard(state.ownit);
     });
 
     socket.on('participants_update', (participants) => {
@@ -2919,10 +1041,7 @@ function ProjectorView() {
 
     socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
 
-    socket.on('session_update', (session) => {
-      setActivity(session.activity || 'constellation');
-      setSessionState(session.state);
-    });
+    socket.on('session_update', (session) => setSessionState(session.state));
 
     socket.on('teams_formed', ({ teams }) => {
       setTeams(teams); setSessionState('teams_formed'); setShowFormingBanner(true);
@@ -2941,19 +1060,14 @@ function ProjectorView() {
       setTimeout(() => setShowFormingBanner(false), 4200);
     });
 
-    // The projector asks for live board updates on every (re)connect.
+    // The projector announces itself on every (re)connect to get the full state.
     const hello = () => socket.emit('hello', { role: 'projector' });
     socket.on('connect', hello);
     if (socket.connected) hello();
-    socket.on('puzzle_started', (b) => { setActivity('puzzle'); setBoard(b); });
-    socket.on('puzzle_board', (b) => { if (b) setBoard(b); });
-    socket.on('ownit_started', (b) => { setActivity('ownit'); setOwnitBoard(b); });
-    socket.on('ownit_board', (b) => { if (b) setOwnitBoard(b); });
 
     socket.on('reset', () => {
       nodesRef.current = []; persistentEdgesRef.current = []; flashEdgesRef.current = [];
       setTeams([]); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
-      setActivity('constellation'); setBoard(null); setOwnitBoard(null);
       stateRef.current = 'idle';
       updatePhysicsForPhase();
       if (simRef.current) { simRef.current.nodes([]); }
@@ -2962,8 +1076,7 @@ function ProjectorView() {
     return () => {
       socket.off('state_sync'); socket.off('participants_update');
       socket.off('answer_received'); socket.off('submitted_update'); socket.off('session_update'); socket.off('teams_formed');
-      socket.off('connect', hello); socket.off('puzzle_started'); socket.off('puzzle_board'); socket.off('reset');
-      socket.off('ownit_started'); socket.off('ownit_board');
+      socket.off('connect', hello); socket.off('reset');
     };
   }, [ensureNode]);
 
@@ -2994,13 +1107,6 @@ function ProjectorView() {
       });
     });
     teamsRef.current = teamList;
-  }
-
-  if (activity === 'puzzle') {
-    return <PuzzleProjector board={board} />;
-  }
-  if (activity === 'ownit') {
-    return <OwnItProjector board={ownitBoard} />;
   }
 
   return (
@@ -3060,7 +1166,7 @@ function ProjectorView() {
       {showFormingBanner && (
         <div className="lc-fadein" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: 'radial-gradient(circle, rgba(7,8,11,.72) 0%, transparent 65%)' }}>
           <div style={{ fontSize: 13, letterSpacing: '.3em', textTransform: 'uppercase', color: 'rgba(232,185,35,.8)', marginBottom: 14, fontWeight: 600 }}>Forming</div>
-          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>{({ 10: 'Ten', 20: 'Twenty' })[teams.length] || teams.length} Teams</div>
+          <div style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 'clamp(44px,7vw,104px)', letterSpacing: '-0.03em', color: '#f5f0e8', textShadow: '0 0 60px rgba(232,87,26,.6)' }}>{({ 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six' })[teams.length] || teams.length} Teams</div>
         </div>
       )}
     </div>
@@ -3071,20 +1177,20 @@ function ProjectorView() {
 /* ============================================================
    FACILITATOR VIEW
    ============================================================ */
+// Short labels for the balance table (question index -> option index -> label).
+const EXP_SHORT = ['<2', '2-5', '6-10', '11-15', '15+'];
+
 function FacilitatorView() {
   const [joinedCount, setJoinedCount] = useState(0);
-  const [activity, setActivity] = useState('constellation');
   const [sessionState, setSessionState] = useState('idle');
   const [submittedCount, setSubmittedCount] = useState(0);
   const [questions, setQuestions] = useState([]);
   const [participants, setParticipants] = useState({});
+  const [answers, setAnswers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [moveParticipantId, setMoveParticipantId] = useState('');
   const [moveTeamId, setMoveTeamId] = useState('');
   const [search, setSearch] = useState('');
-  const [pz, setPz] = useState(null);       // facilitator puzzle detail (includes codes)
-  const [board, setBoard] = useState(null); // same board the projector shows
-  const [oi, setOi] = useState(null);       // Own It detail for the facilitator
   const [confirm, setConfirm] = useState(null);
 
   useEffect(() => {
@@ -3096,67 +1202,51 @@ function FacilitatorView() {
     }
 
     socket.on('state_sync', (state) => {
-      setQuestions(state.questions); setParticipants(state.participants);
+      setQuestions(state.questions); setParticipants(state.participants); setAnswers(state.answers || []);
       setJoinedCount(Object.keys(state.participants).length);
-      setActivity(state.session.activity || 'constellation');
       setSessionState(state.session.state);
       setTeams(state.teams);
       setSubmittedCount(computeSubmitted(state));
-      setBoard(state.puzzle || null);
-      if (!state.puzzle) setPz(null);
     });
     socket.on('participants_update', (p) => { setParticipants(p); setJoinedCount(Object.keys(p).length); });
+    socket.on('answer_received', (a) => setAnswers((prev) => [...prev, a]));
     socket.on('submitted_update', ({ submitted }) => setSubmittedCount(submitted));
-    socket.on('session_update', (session) => {
-      setActivity(session.activity || 'constellation'); setSessionState(session.state);
+    socket.on('session_update', (session) => setSessionState(session.state));
+    socket.on('teams_formed', ({ teams, participants }) => {
+      setTeams(teams); setSessionState('teams_formed');
+      if (participants) setParticipants(participants);
     });
-    socket.on('teams_formed', ({ teams }) => { setTeams(teams); setSessionState('teams_formed'); });
-    // Announce as facilitator on every (re)connect to get codes and stats.
     const hello = () => socket.emit('hello', { role: 'facilitator' });
     socket.on('connect', hello);
     if (socket.connected) hello();
-    socket.on('puzzle_started', (b) => { setActivity('puzzle'); setBoard(b); });
-    socket.on('puzzle_board', (b) => { if (b) setBoard(b); });
-    socket.on('puzzle_facilitator', (d) => { if (d) setPz(d); });
-    socket.on('ownit_started', () => setActivity('ownit'));
-    socket.on('ownit_facilitator', (d) => { if (d) setOi(d); });
     socket.on('reset', () => {
-      setActivity('constellation'); setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
-      setTeams([]); setParticipants({}); setPz(null); setBoard(null); setOi(null);
+      setSessionState('idle'); setJoinedCount(0); setSubmittedCount(0);
+      setTeams([]); setParticipants({}); setAnswers([]);
     });
     return () => {
-      socket.off('state_sync'); socket.off('participants_update'); socket.off('submitted_update');
+      socket.off('state_sync'); socket.off('participants_update'); socket.off('answer_received'); socket.off('submitted_update');
       socket.off('session_update'); socket.off('teams_formed'); socket.off('reset');
-      socket.off('connect', hello); socket.off('puzzle_started'); socket.off('puzzle_board'); socket.off('puzzle_facilitator');
-      socket.off('ownit_started'); socket.off('ownit_facilitator');
+      socket.off('connect', hello);
     };
   }, []);
 
   function startQuiz() { socket.emit('facilitator_start_quiz'); }
-  function makeTeams() { socket.emit('facilitator_make_teams'); }
+  function makeTeams() {
+    if (teams.length === 0) { socket.emit('facilitator_make_teams'); return; }
+    setConfirm({
+      title: 'Make the teams again?',
+      message: 'This makes a new balanced split of 4 teams. Everyone may move to a different team, and any manual moves will be lost.',
+      confirmLabel: 'Make new teams',
+      onConfirm: () => socket.emit('facilitator_make_teams'),
+    });
+  }
   function resetAll() {
     setConfirm({
       title: 'Reset the entire session?',
-      message: 'All participants, answers, teams, Code Up and Own It progress will be cleared. Everyone will be sent back to the join screen.',
+      message: 'All participants, answers and teams will be cleared. Everyone will be sent back to the join screen.',
       confirmLabel: 'Reset everything',
       danger: true,
       onConfirm: () => socket.emit('facilitator_reset'),
-    });
-  }
-  function startPuzzle() {
-    setConfirm({
-      title: 'Start Code Up?',
-      message: 'Every phone switches to the puzzle. Each team gets a captain, partner teams are shuffled, and the first 4 answerers per team get their scenarios.',
-      confirmLabel: 'Start puzzle',
-      onConfirm: () => socket.emit('facilitator_start_puzzle'),
-    });
-  }
-  function startOwnIt() {
-    setConfirm({
-      title: 'Start Own It?',
-      message: 'Every phone switches to Own It. Each team gets one of the 3 cases at random (7, 7 and 6 teams) and works at its own pace. Captains carry over from Code Up.',
-      confirmLabel: 'Start Own It',
-      onConfirm: () => socket.emit('facilitator_start_ownit'),
     });
   }
   function moveParticipant() {
@@ -3175,8 +1265,16 @@ function FacilitatorView() {
     });
   }
 
+  // pid -> { questionIndex: optionIndex }
+  const answerMap = {};
+  answers.forEach((a) => { (answerMap[a.participantId] = answerMap[a.participantId] || {})[a.questionIndex] = a.optionIndex; });
+  const companyOptions = (questions[1] && questions[1].options) || [];
+  const companyOf = (pid) => { const v = answerMap[pid] && answerMap[pid][1]; return v === undefined ? '-' : companyOptions[v]; };
+  const expOf = (pid) => { const v = answerMap[pid] && answerMap[pid][0]; return v === undefined ? '-' : EXP_SHORT[v]; };
+
   const pct = joinedCount ? Math.round((submittedCount / joinedCount) * 100) : 0;
   const filtered = Object.values(participants).filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+  const label = { fontSize: 14, opacity: .75, letterSpacing: '.05em', textTransform: 'uppercase' };
 
   return (
     <div className="lc-root">
@@ -3187,132 +1285,126 @@ function FacilitatorView() {
           <img src="/logo.png" alt="Carnelian" style={{ height: 42 }} />
           <div>
             <h1 className="lc-h1" style={{ fontSize: 'clamp(19px,3vw,25px)', marginBottom: 6 }}>Facilitator Console</h1>
-            <span className="lc-badge">{activity === 'puzzle' ? 'Code Up' : activity === 'ownit' ? 'Own It' : 'Team Formation'} · {sessionState.replace('_', ' ')}</span>
+            <span className="lc-badge">Team Formation · {sessionState.replace('_', ' ')}</span>
           </div>
         </div>
 
-        {activity === 'constellation' && (
-          <>
-            <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-              <div className="lc-stat-card"><div className="lc-stat-label">Joined</div><div className="lc-stat-value">{joinedCount}</div></div>
-              <div className="lc-stat-card">
-                <div className="lc-stat-label">Submitted the quiz</div>
-                <div className="lc-stat-value" style={{ color: pct >= 80 ? '#3ddc84' : 'var(--ink)' }}>{submittedCount}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{joinedCount}</span></div>
-                <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${pct}%` }} /></div>
-              </div>
-              <div className="lc-stat-card">
-                <div className="lc-stat-label">Questions</div>
-                <div className="lc-stat-value">{questions.length || 6}</div>
-              </div>
-            </div>
+        <div className="lc-stats-row" style={{ display: 'flex', gap: 14, marginBottom: 22, flexWrap: 'wrap' }}>
+          <div className="lc-stat-card"><div className="lc-stat-label">Joined</div><div className="lc-stat-value">{joinedCount}</div></div>
+          <div className="lc-stat-card">
+            <div className="lc-stat-label">Submitted the quiz</div>
+            <div className="lc-stat-value" style={{ color: pct >= 80 ? '#3ddc84' : 'var(--ink)' }}>{submittedCount}<span style={{ color: 'var(--ink-faint)', fontSize: 20 }}>/{joinedCount}</span></div>
+            <div className="lc-bar-track" style={{ marginTop: 10 }}><div className="lc-bar-fill" style={{ width: `${pct}%` }} /></div>
+          </div>
+          <div className="lc-stat-card">
+            <div className="lc-stat-label">Teams</div>
+            <div className="lc-stat-value">4</div>
+          </div>
+        </div>
 
-            <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
-              {sessionState === 'idle' && (
-                <>
-                  <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
-                    Once you start, every joined phone gets all {questions.length || 6} questions at once, people answer at their own pace, no need to push each question.
-                  </p>
-                  <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
-                </>
-              )}
-              {sessionState === 'quiz_open' && (
-                <>
-                  <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 500 }}>Quiz is open</p>
-                  <p className="lc-faint" style={{ marginTop: 0 }}>People are answering at their own pace. You never need everyone to finish, make teams whenever the room feels ready.</p>
-                </>
-              )}
-              {sessionState === 'teams_formed' && (
-                <p style={{ margin: 0, fontSize: 16, color: 'var(--ink-dim)' }}>Teams are formed. Start Code Up below when ready.</p>
-              )}
-            </div>
+        <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
+          {sessionState === 'idle' && (
+            <>
+              <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
+                Once you start, every joined phone gets all {questions.length || 4} questions at once. People answer at their own pace, so there is no need to push each question.
+              </p>
+              <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
+            </>
+          )}
+          {sessionState === 'populating' && (
+            <>
+              <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
+                People are joining. Start the quiz when the room is in.
+              </p>
+              <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
+            </>
+          )}
+          {sessionState === 'quiz_open' && (
+            <>
+              <p style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 500 }}>Quiz is open</p>
+              <p className="lc-faint" style={{ marginTop: 0 }}>People are answering at their own pace. Make teams once everyone has submitted. Anyone who has not answered is still placed, balanced by gender only.</p>
+            </>
+          )}
+          {sessionState === 'teams_formed' && (
+            <p style={{ margin: 0, fontSize: 16, color: 'var(--ink-dim)' }}>Teams are formed and showing on every phone and the big screen.</p>
+          )}
+        </div>
 
-            <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
-              <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-danger" onClick={makeTeams} disabled={sessionState === 'idle'} style={{ flex: '2 1 220px' }}>✦ Make teams</button>
-                <button className="lc-btn lc-btn-outline" onClick={resetAll}>Reset to idle</button>
-              </div>
-            </div>
+        <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
+          <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <button className="lc-btn lc-btn-danger" onClick={makeTeams} disabled={sessionState === 'idle' || joinedCount === 0}
+              style={{ flex: '2 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+              <Icon name={teams.length ? 'shuffle' : 'users'} size={18} /> {teams.length ? 'Make teams again' : 'Make 4 teams'}
+            </button>
+            <button className="lc-btn lc-btn-outline" onClick={resetAll}>Reset to idle</button>
+          </div>
+        </div>
 
-            {teams.length > 0 && (
-              <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
-                <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 14px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Teams</h3>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 }}>
-                  {teams.map((t) => (
-                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, background: 'rgba(255,255,255,.03)', border: `1px solid ${t.colour}44`, fontSize: 13 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.colour, boxShadow: `0 0 10px ${t.colour}` }} />Team {t.number}<b style={{ color: t.colour }}>{t.memberIds.length}</b>
-                      <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>{t.memberIds.filter((id) => participants[id] && participants[id].gender === 'female').length}F</span>
+        {teams.length > 0 && (
+          <div className="lc-card" style={{ padding: 24, marginBottom: 18 }}>
+            <h3 style={{ ...label, margin: '0 0 14px' }}>Teams</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 22 }}>
+              {teams.map((t) => {
+                const members = t.memberIds.filter((id) => participants[id]);
+                const women = members.filter((id) => participants[id].gender === 'woman').length;
+                return (
+                  <div key={t.id} style={{ background: 'rgba(255,255,255,.03)', border: `1px solid ${t.colour}55`, borderRadius: 14, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontWeight: 700 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.colour, boxShadow: `0 0 10px ${t.colour}` }} />
+                      Team {t.number}
+                      <span style={{ marginLeft: 'auto', color: 'var(--ink-faint)', fontSize: 12, fontWeight: 500 }}>{members.length} people · {women} W · {members.length - women} M</span>
                     </div>
-                  ))}
-                </div>
-                <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 12px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Manual override</h3>
-                <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <select className="lc-select" value={moveParticipantId} onChange={(e) => setMoveParticipantId(e.target.value)}>
-                    <option value="">Select participant</option>
-                    {Object.values(participants).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <select className="lc-select" value={moveTeamId} onChange={(e) => setMoveTeamId(e.target.value)}>
-                    <option value="">Select team</option>
-                    {teams.map((t) => <option key={t.id} value={t.id}>Team {t.number}</option>)}
-                  </select>
-                  <button className="lc-btn lc-btn-primary" onClick={moveParticipant}>Move</button>
-                </div>
-                <div className="lc-btn-row" style={{ marginTop: 18, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button className="lc-btn lc-btn-gold" onClick={startPuzzle} style={{ flex: '2 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><Icon name="puzzle" size={18} /> Start Code Up</button>
-                  <button className="lc-btn lc-btn-outline" onClick={startOwnIt} style={{ flex: '1 1 180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><Icon name="bulb" size={18} /> Start Own It</button>
-                </div>
-              </div>
-            )}
-
-            <div className="lc-card" style={{ padding: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-                <h3 style={{ fontSize: 14, opacity: .75, margin: 0, letterSpacing: '.05em', textTransform: 'uppercase' }}>Participants ({joinedCount})</h3>
-                <input className="lc-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name" style={{ width: 200, padding: '10px 14px', fontSize: 14, textAlign: 'left' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
-                {filtered.length === 0 && <p className="lc-faint" style={{ margin: 0 }}>Nobody yet.</p>}
-                {filtered.map((p) => {
-                  const t = teams.find((tt) => tt.id === p.teamId);
-                  return (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,.03)', padding: '10px 15px', borderRadius: 10, fontSize: 14 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        {t && <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.colour }} />}
-                        {p.name}{t && <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>Team {t.number}</span>}
-                      </span>
-                      <button onClick={() => deleteParticipant(p.id)} style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: 'rgba(168,50,50,.2)', color: '#ff9a9a', fontSize: 12, cursor: 'pointer' }}>Remove</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {members.map((id) => (
+                        <div key={id} style={{ fontSize: 13, lineHeight: 1.3 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{participants[id].name}</span>
+                            <span style={{ color: 'var(--ink-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{participants[id].gender === 'woman' ? 'W' : 'M'} · {expOf(id)} yrs</span>
+                          </div>
+                          <div style={{ color: 'var(--ink-faint)', fontSize: 11.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{companyOf(id)}</div>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          </>
+            <h3 style={{ ...label, margin: '0 0 12px' }}>Manual override</h3>
+            <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <select className="lc-select" value={moveParticipantId} onChange={(e) => setMoveParticipantId(e.target.value)}>
+                <option value="">Select participant</option>
+                {Object.values(participants).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <select className="lc-select" value={moveTeamId} onChange={(e) => setMoveTeamId(e.target.value)}>
+                <option value="">Select team</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>Team {t.number}</option>)}
+              </select>
+              <button className="lc-btn lc-btn-primary" onClick={moveParticipant}>Move</button>
+            </div>
+          </div>
         )}
 
-        {activity === 'puzzle' && (
-          <>
-            <PuzzleFacilitatorPanel pz={pz} board={board} onConfirm={setConfirm} />
-            <div className="lc-card" style={{ padding: 22, marginBottom: 18 }}>
-              <h3 style={{ fontSize: 14, opacity: .75, margin: '0 0 6px', letterSpacing: '.05em', textTransform: 'uppercase' }}>Next activity</h3>
-              <p className="lc-faint" style={{ marginTop: 0, marginBottom: 14 }}>Own It uses the same teams and captains. Start it whenever Code Up is done.</p>
-              <button className="lc-btn lc-btn-gold" onClick={startOwnIt} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><Icon name="bulb" size={18} /> Start Own It</button>
-            </div>
-            <div className="lc-card" style={{ padding: 22 }}>
-              <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-danger" onClick={resetAll}>Reset entire session</button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activity === 'ownit' && (
-          <>
-            <OwnItFacilitatorPanel oi={oi} onConfirm={setConfirm} />
-            <div className="lc-card" style={{ padding: 22 }}>
-              <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="lc-btn lc-btn-danger" onClick={resetAll}>Reset entire session</button>
-              </div>
-            </div>
-          </>
-        )}
+        <div className="lc-card" style={{ padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+            <h3 style={{ ...label, margin: 0 }}>Participants ({joinedCount})</h3>
+            <input className="lc-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name" style={{ width: 200, padding: '10px 14px', fontSize: 14, textAlign: 'left' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
+            {filtered.length === 0 && <p className="lc-faint" style={{ margin: 0 }}>Nobody yet.</p>}
+            {filtered.map((p) => {
+              const t = teams.find((tt) => tt.id === p.teamId);
+              return (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,.03)', padding: '10px 15px', borderRadius: 10, fontSize: 14 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                    {t && <span style={{ width: 8, height: 8, borderRadius: '50%', background: t.colour }} />}
+                    {p.name}{t && <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>Team {t.number}</span>}
+                  </span>
+                  <button onClick={() => deleteParticipant(p.id)} style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: 'rgba(168,50,50,.2)', color: '#ff9a9a', fontSize: 12, cursor: 'pointer' }}>Remove</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <ConfirmModal
