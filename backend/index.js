@@ -17,7 +17,7 @@ const io = new Server(server, {
 // ============================================================
 const QUESTIONS = [
   { text: "How many years of work experience do you have?", options: ["Less than 2 years", "2 to 5 years", "6 to 10 years", "11 to 15 years", "More than 15 years"] },
-  { text: "Which company are you from?", options: ["Pak Suzuki Motor Co. Ltd.", "Faysal Bank Limited", "Aga Khan University", "Martin Dow Marker Limited", "Welnox Limited", "Ismail Industries Limited", "The Hub Power Company Limited", "Carnelian", "Not mentioned / Currently not working"] },
+  { text: "Which company are you from?", options: ["Pak Suzuki Motor Co. Ltd.", "Faysal Bank Limited", "Aga Khan University", "Martin Dow Limited", "Welnox Limited", "Ismail Industries Limited", "The Hub Power Company Limited", "Carnelian", "Currently not working"] },
   { text: "What's your favourite show?", options: ["Stranger Things", "Brooklyn Nine-Nine", "Sacred Games", "Friends", "Suits", "The Office", "No, I don't watch shows"] },
   { text: "Your go-to drink?", options: ["Chai", "Coffee", "Soft drink", "Just water", "Energy drink", "Green tea / Kahwa"] },
 ];
