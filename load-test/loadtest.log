@@ -1,0 +1,879 @@
+[   0.003s] INFO  Team Formation load test  run=mw3smcts
+[   0.007s] INFO  server=https://constellation-backend-4d88.onrender.com  phones=23  log=loadtest.log
+[   0.008s] PHASE 
+[   0.008s] PHASE ================================================================
+[   0.009s] PHASE 1. Health check
+[   0.009s] PHASE ================================================================
+[   0.812s] PASS  GET /health -> 200 "ok" in 802ms
+[   1.249s] PASS  GET /state returns 4 questions (expect 4)
+[   1.251s] DEBUG Q1: How many years of work experience do you have? [5 options: Less than 2 years | 2 to 5 years | 6 to 10 years | 11 to 15 years | More than 15 years]
+[   1.253s] DEBUG Q2: Which company are you from? [9 options: Pak Suzuki Motor Co. Ltd. | Faysal Bank Limited | Aga Khan University | Martin Dow Marker Limited | Welnox Limited | Ismail Industries Limited | The Hub Power Company Limited | Carnelian Pvt Limited | Not mentioned here]
+[   1.253s] DEBUG Q3: What's your favourite show? [7 options: Stranger Things | Brooklyn Nine-Nine | Sacred Games | Friends | Suits | The Office | No, I don't watch shows]
+[   1.254s] DEBUG Q4: Your go-to drink? [6 options: Chai | Coffee | Soft drink | Just water | Energy drink | Green tea / Kahwa]
+[   1.255s] PHASE 
+[   1.255s] PHASE ================================================================
+[   1.256s] PHASE 2. Facilitator and projector connect, session reset
+[   1.257s] PHASE ================================================================
+[   2.678s] PASS  facilitator sid=Usbffs0KwVV0Tq8MAAAG, projector sid=VLnzOFcgXKSQy_gRAAAF connected
+[   3.594s] PASS  facilitator_reset broadcast received by projector
+[   4.014s] PASS  state after reset: idle, 0 people
+[   4.015s] PHASE 
+[   4.019s] PHASE ================================================================
+[   4.023s] PHASE 3. 23 phones connect and join
+[   4.025s] PHASE ================================================================
+[   5.587s] DEBUG phone#003 connected sid=VV9uszYw5Qk20LrIAAAe in 1546ms
+[   5.594s] DEBUG phone#001 connected sid=DO2-11NjCMeEvfVGAAAg in 1560ms
+[   5.600s] DEBUG phone#005 connected sid=kuO3DQaj0hKGtI0WAAAh in 1550ms
+[   5.605s] DEBUG phone#000 connected sid=VB7fdsvGr20blwfOAAAi in 1576ms
+[   5.610s] DEBUG phone#007 connected sid=Xx-cr_MQUMPsom5mAAAk in 1548ms
+[   5.667s] DEBUG phone#004 connected sid=iC045HtjuB-Y4Gn4AAAj in 1623ms
+[   5.673s] DEBUG phone#008 connected sid=c-Y9UBSadOZlH85NAAAn in 1605ms
+[   5.681s] DEBUG phone#002 connected sid=WADEfg81YGWFi0VFAAAf in 1643ms
+[   5.686s] DEBUG phone#015 connected sid=wLfPR7n7r0kAizPxAAAm in 1592ms
+[   5.693s] DEBUG phone#012 connected sid=ttC0cNYqJb8AvMIjAAAl in 1608ms
+[   5.701s] DEBUG phone#010 connected sid=xx309RehoBj4KDbdAAAp in 1623ms
+[   5.706s] DEBUG phone#011 connected sid=oImRKmCm2IWXM8BZAAAq in 1624ms
+[   5.735s] DEBUG phone#014 connected sid=ppiq6zrmLAa_ITA7AAAo in 1644ms
+[   5.740s] DEBUG phone#019 connected sid=_HbV2XlXmamVWFyeAAAs in 1630ms
+[   6.060s] DEBUG phone#022 connected sid=udT-JIjkBdvSKOr-AAAr in 1940ms
+[   6.066s] DEBUG phone#021 connected sid=Xol3uezooaQOEFAuAAAt in 1949ms
+[   6.144s] DEBUG phone#018 connected sid=4wByw17tR0PwyBP6AAAu in 2038ms
+[   6.150s] DEBUG phone#020 connected sid=NuDegwbld-yHdUdxAAAv in 2037ms
+[   6.154s] DEBUG phone#016 connected sid=D-qbnP5xJqaqp6OoAAAw in 2057ms
+[   6.157s] DEBUG phone#013 connected sid=vykV2MEPFjSm13RbAAAx in 2069ms
+[   6.161s] DEBUG phone#017 connected sid=fZkNP3tqHttPheZJAAAy in 2060ms
+[   6.165s] DEBUG phone#006 connected sid=XDvp0H4SzoaTd5SwAAAz in 2109ms
+[   6.169s] DEBUG phone#003 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.188s] DEBUG phone#001 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.192s] DEBUG phone#005 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.196s] DEBUG phone#007 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.199s] DEBUG phone#000 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.253s] DEBUG phone#004 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.454s] DEBUG phone#010 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.458s] DEBUG phone#002 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.461s] DEBUG phone#012 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.464s] DEBUG phone#011 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.467s] DEBUG phone#015 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.496s] DEBUG phone#014 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.565s] DEBUG phone#009 connected sid=tVd2AM4Q3MKe-PL9AAA0 in 2492ms
+[   6.566s] INFO  connected phones 0-22: 23/23
+[   6.568s] PASS  all 23 phones connected (n=23 min=1546ms p50=1630ms p95=2109ms max=2492ms)
+[   6.586s] DEBUG phone#019 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.589s] DEBUG phone#021 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.591s] DEBUG phone#022 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.601s] DEBUG phone#013 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.652s] DEBUG phone#016 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.654s] DEBUG phone#020 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.657s] DEBUG phone#018 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   6.739s] DEBUG phone#006 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   7.041s] DEBUG phone#008 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   7.074s] DEBUG phone#017 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   7.131s] DEBUG phone#002 <- join_error  "Invalid name"
+[   7.132s] PASS  blank name rejected: "Invalid name"
+[   7.390s] DEBUG phone#009 <- state_sync  state=idle people=0 myAnswers=0 teams=0
+[   7.428s] DEBUG phone#002 <- join_error  "Invalid name"
+[   7.428s] PASS  21-character name rejected: "Invalid name"
+[   7.725s] DEBUG phone#002 <- join_error  "Please select your gender."
+[   7.726s] PASS  old gender value "male" rejected: "Please select your gender."
+[   7.814s] DEBUG phone#005 -> join name="Kiran Tariq 5" gender=man
+[   7.930s] DEBUG phone#013 -> join name="Noor Mirza 13" gender=woman
+[   7.970s] DEBUG phone#010 -> join name="Omar Siddiqui 10" gender=man
+[   8.106s] DEBUG facilitator <- participants_update people=1
+[   8.109s] DEBUG phone#005 <- joined      id=lt_mw3smcts_5 name="Kiran Tariq 5" gender=man
+[   8.112s] DEBUG phone#005 <- state_sync  state=idle people=1 myAnswers=0 teams=0
+[   8.148s] DEBUG phone#022 -> join name="Zainab Malik 22" gender=woman
+[   8.210s] DEBUG phone#013 <- joined      id=lt_mw3smcts_13 name="Noor Mirza 13" gender=woman
+[   8.211s] DEBUG phone#013 <- state_sync  state=idle people=2 myAnswers=0 teams=0
+[   8.221s] DEBUG facilitator <- participants_update people=2
+[   8.254s] DEBUG phone#008 -> join name="Ali Siddiqui 8" gender=woman
+[   8.265s] DEBUG phone#010 <- joined      id=lt_mw3smcts_10 name="Omar Siddiqui 10" gender=man
+[   8.267s] DEBUG phone#010 <- state_sync  state=idle people=3 myAnswers=0 teams=0
+[   8.268s] DEBUG facilitator <- participants_update people=3
+[   8.281s] DEBUG phone#012 -> join name="Danish Qureshi 12" gender=man
+[   8.356s] DEBUG phone#014 -> join name="Zainab Malik 14" gender=man
+[   8.407s] DEBUG phone#017 -> join name="Sana Mirza 17" gender=man
+[   8.439s] DEBUG phone#022 <- joined      id=lt_mw3smcts_22 name="Zainab Malik 22" gender=woman
+[   8.441s] DEBUG phone#022 <- state_sync  state=idle people=4 myAnswers=0 teams=0
+[   8.451s] DEBUG facilitator <- participants_update people=4
+[   8.536s] DEBUG phone#008 <- joined      id=lt_mw3smcts_8 name="Ali Siddiqui 8" gender=woman
+[   8.537s] DEBUG phone#008 <- state_sync  state=idle people=5 myAnswers=0 teams=0
+[   8.544s] DEBUG facilitator <- participants_update people=5
+[   8.575s] DEBUG phone#012 <- joined      id=lt_mw3smcts_12 name="Danish Qureshi 12" gender=man
+[   8.577s] DEBUG phone#012 <- state_sync  state=idle people=6 myAnswers=0 teams=0
+[   8.589s] DEBUG facilitator <- participants_update people=6
+[   8.652s] DEBUG phone#014 <- joined      id=lt_mw3smcts_14 name="Zainab Malik 14" gender=man
+[   8.662s] DEBUG phone#014 <- state_sync  state=idle people=7 myAnswers=0 teams=0
+[   8.664s] DEBUG facilitator <- participants_update people=7
+[   8.693s] DEBUG phone#018 -> join name="Iqra Siddiqui 18" gender=man
+[   8.696s] DEBUG facilitator <- participants_update people=8
+[   8.699s] DEBUG phone#017 <- joined      id=lt_mw3smcts_17 name="Sana Mirza 17" gender=man
+[   8.709s] DEBUG phone#017 <- state_sync  state=idle people=8 myAnswers=0 teams=0
+[   8.727s] DEBUG phone#019 -> join name="Sana Hassan 19" gender=woman
+[   8.747s] DEBUG phone#004 -> join name="Ali Ahmed 4" gender=woman
+[   8.793s] DEBUG phone#001 -> join name="Fahad Javed 0" gender=woman
+[   8.795s] DEBUG phone#006 -> join name="Usman Shah 6" gender=man
+[   8.894s] DEBUG phone#016 -> join name="Talha Malik 16" gender=man
+[   8.974s] DEBUG phone#018 <- joined      id=lt_mw3smcts_18 name="Iqra Siddiqui 18" gender=man
+[   8.977s] DEBUG phone#018 <- state_sync  state=idle people=9 myAnswers=0 teams=0
+[   8.991s] DEBUG facilitator <- participants_update people=9
+[   9.020s] DEBUG phone#019 <- joined      id=lt_mw3smcts_19 name="Sana Hassan 19" gender=woman
+[   9.021s] DEBUG phone#019 <- state_sync  state=idle people=10 myAnswers=0 teams=0
+[   9.034s] DEBUG facilitator <- participants_update people=10
+[   9.038s] DEBUG phone#004 <- joined      id=lt_mw3smcts_4 name="Ali Ahmed 4" gender=woman
+[   9.043s] DEBUG phone#004 <- state_sync  state=idle people=11 myAnswers=0 teams=0
+[   9.051s] DEBUG facilitator <- participants_update people=11
+[   9.083s] DEBUG phone#001 <- joined      id=lt_mw3smcts_1 name="Fahad Javed 0" gender=woman
+[   9.085s] DEBUG phone#015 -> join name="Rabia Ali 15" gender=man
+[   9.093s] DEBUG phone#001 <- state_sync  state=idle people=12 myAnswers=0 teams=0
+[   9.099s] DEBUG phone#006 <- joined      id=lt_mw3smcts_6 name="Usman Shah 6" gender=man
+[   9.105s] DEBUG phone#006 <- state_sync  state=idle people=13 myAnswers=0 teams=0
+[   9.110s] DEBUG facilitator <- participants_update people=12
+[   9.111s] DEBUG facilitator <- participants_update people=13
+[   9.193s] DEBUG facilitator <- participants_update people=14
+[   9.196s] DEBUG phone#016 <- joined      id=lt_mw3smcts_16 name="Talha Malik 16" gender=man
+[   9.202s] DEBUG phone#016 <- state_sync  state=idle people=14 myAnswers=0 teams=0
+[   9.297s] DEBUG phone#009 -> join name="Ayesha Qureshi 9" gender=man
+[   9.362s] DEBUG phone#020 -> join name="Zainab Ahmed 20" gender=woman
+[   9.377s] DEBUG phone#015 <- joined      id=lt_mw3smcts_15 name="Rabia Ali 15" gender=man
+[   9.382s] DEBUG phone#015 <- state_sync  state=idle people=15 myAnswers=0 teams=0
+[   9.384s] DEBUG facilitator <- participants_update people=15
+[   9.462s] DEBUG phone#000 -> join name="Fahad Javed 0" gender=woman
+[   9.481s] DEBUG phone#011 -> join name="Fahad Siddiqui 11" gender=man
+[   9.491s] DEBUG phone#007 -> join name="Ahmed Iqbal 7" gender=man
+[   9.583s] DEBUG phone#009 <- joined      id=lt_mw3smcts_9 name="Ayesha Qureshi 9" gender=man
+[   9.584s] DEBUG phone#009 <- state_sync  state=idle people=16 myAnswers=0 teams=0
+[   9.590s] DEBUG facilitator <- participants_update people=16
+[   9.608s] DEBUG phone#002 -> join name="Maryam Mirza 2" gender=man
+[   9.647s] DEBUG phone#020 <- joined      id=lt_mw3smcts_20 name="Zainab Ahmed 20" gender=woman
+[   9.650s] DEBUG phone#020 <- state_sync  state=idle people=17 myAnswers=0 teams=0
+[   9.654s] DEBUG facilitator <- participants_update people=17
+[   9.679s] DEBUG phone#003 -> join name="Ahmed Tariq 3" gender=woman
+[   9.705s] DEBUG phone#021 -> join name="Hira Farooq 21" gender=woman
+[   9.753s] DEBUG facilitator <- participants_update people=18
+[   9.755s] DEBUG phone#000 <- joined      id=lt_mw3smcts_0 name="Fahad Javed 0 (2)" gender=woman
+[   9.756s] DEBUG phone#000 <- state_sync  state=idle people=18 myAnswers=0 teams=0
+[   9.758s] DEBUG phone#011 <- joined      id=lt_mw3smcts_11 name="Fahad Siddiqui 11" gender=man
+[   9.762s] DEBUG phone#011 <- state_sync  state=idle people=19 myAnswers=0 teams=0
+[   9.773s] DEBUG facilitator <- participants_update people=19
+[   9.785s] DEBUG phone#007 <- joined      id=lt_mw3smcts_7 name="Ahmed Iqbal 7" gender=man
+[   9.786s] DEBUG phone#007 <- state_sync  state=idle people=20 myAnswers=0 teams=0
+[   9.790s] DEBUG facilitator <- participants_update people=20
+[   9.903s] DEBUG phone#002 <- joined      id=lt_mw3smcts_2 name="Maryam Mirza 2" gender=man
+[   9.905s] DEBUG phone#002 <- state_sync  state=idle people=21 myAnswers=0 teams=0
+[   9.912s] DEBUG facilitator <- participants_update people=21
+[   9.961s] DEBUG phone#003 <- joined      id=lt_mw3smcts_3 name="Ahmed Tariq 3" gender=woman
+[   9.967s] DEBUG phone#003 <- state_sync  state=idle people=22 myAnswers=0 teams=0
+[   9.969s] DEBUG facilitator <- participants_update people=22
+[  10.003s] DEBUG phone#021 <- joined      id=lt_mw3smcts_21 name="Hira Farooq 21" gender=woman
+[  10.004s] PASS  23/23 phones joined (n=23 min=280ms p50=295ms p95=308ms max=313ms)
+[  10.008s] PASS  duplicate name renamed: "Fahad Javed 0" and "Fahad Javed 0 (2)"
+[  10.015s] DEBUG phone#021 <- state_sync  state=idle people=23 myAnswers=0 teams=0
+[  10.025s] DEBUG facilitator <- participants_update people=23
+[  10.297s] DEBUG phone#003 <- joined      id=lt_mw3smcts_3 name="Ahmed Tariq 3" gender=woman
+[  10.298s] DEBUG phone#003 <- state_sync  state=idle people=23 myAnswers=0 teams=0
+[  10.990s] PASS  re-join with same id is idempotent (people=23)
+[  10.991s] INFO  room: 23 people, 10 women, 13 men. room_count events so far: 529
+[  10.995s] PHASE 
+[  10.999s] PHASE ================================================================
+[  11.000s] PHASE 4. Answers sent before the quiz opens are ignored
+[  11.002s] PHASE ================================================================
+[  12.208s] PASS  early answer ignored (no answer_confirmed)
+[  12.538s] PASS  server holds 0 answers before quiz (expect 0)
+[  12.539s] PHASE 
+[  12.542s] PHASE ================================================================
+[  12.544s] PHASE 5. Facilitator starts the quiz, phones answer at their own pace
+[  12.548s] PHASE ================================================================
+[  12.908s] DEBUG projector <- session_update state=quiz_open
+[  12.910s] DEBUG phone#001 <- session_update state=quiz_open
+[  12.914s] DEBUG phone#002 <- session_update state=quiz_open
+[  12.922s] DEBUG phone#003 <- session_update state=quiz_open
+[  12.924s] DEBUG phone#020 <- session_update state=quiz_open
+[  12.926s] DEBUG phone#013 <- session_update state=quiz_open
+[  12.931s] DEBUG phone#009 <- session_update state=quiz_open
+[  12.938s] DEBUG phone#011 <- session_update state=quiz_open
+[  12.942s] DEBUG phone#006 <- session_update state=quiz_open
+[  12.945s] DEBUG phone#012 <- session_update state=quiz_open
+[  12.956s] DEBUG phone#022 <- session_update state=quiz_open
+[  12.959s] DEBUG phone#007 <- session_update state=quiz_open
+[  12.961s] DEBUG phone#017 <- session_update state=quiz_open
+[  12.968s] DEBUG phone#016 <- session_update state=quiz_open
+[  12.971s] DEBUG phone#014 <- session_update state=quiz_open
+[  12.973s] DEBUG phone#005 <- session_update state=quiz_open
+[  12.977s] DEBUG phone#015 <- session_update state=quiz_open
+[  12.981s] DEBUG phone#018 <- session_update state=quiz_open
+[  12.986s] DEBUG phone#019 <- session_update state=quiz_open
+[  12.988s] DEBUG phone#021 <- session_update state=quiz_open
+[  12.989s] DEBUG phone#008 <- session_update state=quiz_open
+[  12.990s] DEBUG phone#010 <- session_update state=quiz_open
+[  12.993s] DEBUG phone#004 <- session_update state=quiz_open
+[  12.995s] DEBUG phone#000 <- session_update state=quiz_open
+[  12.997s] PASS  23/23 phones got session_update quiz_open
+[  14.212s] PASS  out-of-range option rejected
+[  15.413s] PASS  out-of-range question rejected
+[  16.628s] PASS  answer for unknown participant rejected
+[  16.629s] DEBUG phone#015 answers nothing (simulated)
+[  17.116s] DEBUG phone#021 -> answer q0=opt3 (11 to 15 years)
+[  17.180s] DEBUG phone#008 -> answer q0=opt1 (2 to 5 years)
+[  17.198s] DEBUG phone#002 -> answer q0=opt1 (2 to 5 years)
+[  17.266s] DEBUG phone#001 -> answer q0=opt2 (6 to 10 years)
+[  17.407s] DEBUG projector <- submitted_update 0/23
+[  17.408s] DEBUG phone#021 <- answer_confirmed q0=opt3
+[  17.419s] DEBUG phone#007 -> answer q0=opt2 (6 to 10 years)
+[  17.455s] DEBUG projector <- submitted_update 0/23
+[  17.457s] DEBUG phone#008 <- answer_confirmed q0=opt1
+[  17.485s] DEBUG phone#002 <- answer_confirmed q0=opt1
+[  17.487s] DEBUG projector <- submitted_update 0/23
+[  17.557s] DEBUG projector <- submitted_update 0/23
+[  17.558s] DEBUG phone#001 <- answer_confirmed q0=opt2
+[  17.613s] DEBUG phone#009 -> answer q0=opt2 (6 to 10 years)
+[  17.637s] DEBUG phone#005 -> answer q0=opt4 (More than 15 years)
+[  17.673s] DEBUG phone#012 -> answer q0=opt0 (Less than 2 years)
+[  17.706s] DEBUG projector <- submitted_update 0/23
+[  17.715s] DEBUG phone#007 <- answer_confirmed q0=opt2
+[  17.744s] DEBUG phone#019 -> answer q0=opt4 (More than 15 years)
+[  17.745s] DEBUG phone#006 -> answer q0=opt0 (Less than 2 years)
+[  17.844s] DEBUG phone#014 -> answer q0=opt0 (Less than 2 years)
+[  17.899s] DEBUG projector <- submitted_update 0/23
+[  17.899s] DEBUG phone#009 <- answer_confirmed q0=opt2
+[  17.910s] DEBUG projector <- submitted_update 0/23
+[  17.921s] DEBUG phone#000 -> answer q0=opt2 (6 to 10 years)
+[  17.922s] DEBUG phone#013 -> answer q0=opt2 (6 to 10 years)
+[  17.923s] DEBUG phone#005 <- answer_confirmed q0=opt4
+[  17.962s] DEBUG projector <- submitted_update 0/23
+[  17.963s] DEBUG phone#012 <- answer_confirmed q0=opt0
+[  18.035s] DEBUG projector <- submitted_update 0/23
+[  18.035s] DEBUG projector <- submitted_update 0/23
+[  18.038s] DEBUG phone#017 -> answer q0=opt1 (2 to 5 years)
+[  18.040s] DEBUG phone#016 -> answer q0=opt3 (11 to 15 years)
+[  18.043s] DEBUG phone#019 <- answer_confirmed q0=opt4
+[  18.046s] DEBUG phone#006 <- answer_confirmed q0=opt0
+[  18.114s] DEBUG phone#020 -> answer q0=opt4 (More than 15 years)
+[  18.129s] DEBUG phone#021 -> answer q1=opt3 (Martin Dow Marker Limited)
+[  18.131s] DEBUG projector <- submitted_update 0/23
+[  18.149s] DEBUG phone#011 -> answer q0=opt4 (More than 15 years)
+[  18.151s] DEBUG phone#014 <- answer_confirmed q0=opt0
+[  18.200s] DEBUG phone#013 <- answer_confirmed q0=opt2
+[  18.210s] DEBUG phone#000 <- answer_confirmed q0=opt2
+[  18.212s] DEBUG projector <- submitted_update 0/23
+[  18.213s] DEBUG projector <- submitted_update 0/23
+[  18.227s] DEBUG phone#004 -> answer q0=opt3 (11 to 15 years)
+[  18.228s] DEBUG phone#008 -> answer q1=opt7 (Carnelian Pvt Limited)
+[  18.279s] DEBUG phone#003 -> answer q0=opt3 (11 to 15 years)
+[  18.318s] DEBUG projector <- submitted_update 0/23
+[  18.330s] DEBUG phone#017 <- answer_confirmed q0=opt1
+[  18.331s] DEBUG projector <- submitted_update 0/23
+[  18.340s] DEBUG phone#016 <- answer_confirmed q0=opt3
+[  18.392s] DEBUG projector <- submitted_update 0/23
+[  18.393s] DEBUG phone#020 <- answer_confirmed q0=opt4
+[  18.408s] DEBUG phone#022 -> answer q0=opt3 (11 to 15 years)
+[  18.417s] DEBUG projector <- submitted_update 0/23
+[  18.418s] DEBUG phone#021 <- answer_confirmed q1=opt3
+[  18.421s] DEBUG phone#011 <- answer_confirmed q0=opt4
+[  18.422s] DEBUG projector <- submitted_update 0/23
+[  18.494s] DEBUG phone#012 -> answer q1=opt1 (Faysal Bank Limited)
+[  18.506s] DEBUG phone#008 <- answer_confirmed q1=opt7
+[  18.508s] DEBUG phone#008 -- disconnected (io client disconnect)
+[  18.510s] DEBUG phone#018 -> answer q0=opt4 (More than 15 years)
+[  18.512s] DEBUG projector <- submitted_update 0/23
+[  18.513s] DEBUG projector <- submitted_update 0/23
+[  18.520s] DEBUG phone#004 <- answer_confirmed q0=opt3
+[  18.552s] DEBUG projector <- submitted_update 0/23
+[  18.562s] DEBUG phone#003 <- answer_confirmed q0=opt3
+[  18.569s] DEBUG phone#009 -> answer q1=opt7 (Carnelian Pvt Limited)
+[  18.570s] DEBUG phone#005 -> answer q1=opt0 (Pak Suzuki Motor Co. Ltd.)
+[  18.601s] DEBUG phone#010 -> answer q0=opt0 (Less than 2 years)
+[  18.696s] DEBUG phone#022 <- answer_confirmed q0=opt3
+[  18.697s] DEBUG projector <- submitted_update 0/23
+[  18.755s] DEBUG phone#017 -> answer q1=opt6 (The Hub Power Company Limited)
+[  18.788s] DEBUG phone#012 <- answer_confirmed q1=opt1
+[  18.790s] DEBUG projector <- submitted_update 0/23
+[  18.791s] DEBUG projector <- submitted_update 0/23
+[  18.793s] DEBUG phone#018 <- answer_confirmed q0=opt4
+[  18.842s] DEBUG phone#007 -> answer q1=opt4 (Welnox Limited)
+[  18.846s] DEBUG projector <- submitted_update 0/23
+[  18.853s] DEBUG phone#005 <- answer_confirmed q1=opt0
+[  18.855s] DEBUG projector <- submitted_update 0/23
+[  18.858s] DEBUG phone#009 <- answer_confirmed q1=opt7
+[  18.872s] DEBUG phone#009 -- disconnected (io client disconnect)
+[  18.885s] DEBUG projector <- submitted_update 0/23
+[  18.890s] DEBUG phone#010 <- answer_confirmed q0=opt0
+[  19.030s] DEBUG projector <- submitted_update 0/23
+[  19.039s] DEBUG phone#017 <- answer_confirmed q1=opt6
+[  19.072s] DEBUG phone#002 -> answer q1=opt7 (Carnelian Pvt Limited)
+[  19.128s] DEBUG projector <- submitted_update 0/23
+[  19.145s] DEBUG phone#001 -> answer q1=opt0 (Pak Suzuki Motor Co. Ltd.)
+[  19.147s] DEBUG phone#007 <- answer_confirmed q1=opt4
+[  19.221s] DEBUG phone#006 -> answer q1=opt1 (Faysal Bank Limited)
+[  19.230s] DEBUG phone#021 -> answer q2=opt1 (Brooklyn Nine-Nine)
+[  19.265s] DEBUG phone#018 -> answer q1=opt2 (Aga Khan University)
+[  19.276s] DEBUG phone#003 -> answer q1=opt3 (Martin Dow Marker Limited)
+[  19.297s] DEBUG phone#000 -> answer q1=opt4 (Welnox Limited)
+[  19.358s] DEBUG phone#002 <- answer_confirmed q1=opt7
+[  19.360s] DEBUG projector <- submitted_update 0/23
+[  19.425s] DEBUG phone#010 -> answer q1=opt5 (Ismail Industries Limited)
+[  19.435s] DEBUG projector <- submitted_update 0/23
+[  19.437s] DEBUG phone#001 <- answer_confirmed q1=opt0
+[  19.511s] DEBUG projector <- submitted_update 0/23
+[  19.513s] DEBUG phone#006 <- answer_confirmed q1=opt1
+[  19.520s] DEBUG phone#021 <- answer_confirmed q2=opt1
+[  19.523s] DEBUG projector <- submitted_update 0/23
+[  19.532s] DEBUG phone#019 -> answer q1=opt1 (Faysal Bank Limited)
+[  19.544s] DEBUG projector <- submitted_update 0/23
+[  19.545s] DEBUG phone#018 <- answer_confirmed q1=opt2
+[  19.553s] DEBUG projector <- submitted_update 0/23
+[  19.559s] DEBUG phone#003 <- answer_confirmed q1=opt3
+[  19.584s] DEBUG projector <- submitted_update 0/23
+[  19.592s] DEBUG phone#000 <- answer_confirmed q1=opt4
+[  19.670s] DEBUG phone#022 -> answer q1=opt2 (Aga Khan University)
+[  19.704s] DEBUG projector <- submitted_update 0/23
+[  19.714s] DEBUG phone#010 <- answer_confirmed q1=opt5
+[  19.819s] DEBUG phone#019 <- answer_confirmed q1=opt1
+[  19.820s] DEBUG projector <- submitted_update 0/23
+[  19.838s] DEBUG phone#013 -> answer q1=opt6 (The Hub Power Company Limited)
+[  19.912s] DEBUG phone#014 -> answer q1=opt4 (Welnox Limited)
+[  19.927s] DEBUG phone#020 -> answer q1=opt8 (Not mentioned here)
+[  19.967s] DEBUG phone#022 <- answer_confirmed q1=opt2
+[  19.969s] DEBUG phone#004 -> answer q1=opt5 (Ismail Industries Limited)
+[  19.970s] DEBUG projector <- submitted_update 0/23
+[  20.117s] DEBUG projector <- submitted_update 0/23
+[  20.121s] DEBUG phone#013 <- answer_confirmed q1=opt6
+[  20.121s] DEBUG phone#012 -> answer q2=opt6 (No, I don't watch shows)
+[  20.177s] DEBUG phone#011 -> answer q1=opt1 (Faysal Bank Limited)
+[  20.202s] DEBUG projector <- submitted_update 0/23
+[  20.203s] DEBUG projector <- submitted_update 0/23
+[  20.217s] DEBUG phone#016 -> answer q1=opt5 (Ismail Industries Limited)
+[  20.221s] DEBUG phone#020 <- answer_confirmed q1=opt8
+[  20.223s] DEBUG phone#014 <- answer_confirmed q1=opt4
+[  20.249s] DEBUG projector <- submitted_update 0/23
+[  20.256s] DEBUG phone#004 <- answer_confirmed q1=opt5
+[  20.333s] DEBUG phone#006 -> answer q2=opt5 (The Office)
+[  20.336s] DEBUG phone#021 -> answer q3=opt3 (Just water)
+[  20.423s] DEBUG phone#005 -> answer q2=opt4 (Suits)
+[  20.425s] DEBUG projector <- submitted_update 0/23
+[  20.428s] DEBUG phone#012 <- answer_confirmed q2=opt6
+[  20.450s] DEBUG projector <- submitted_update 0/23
+[  20.451s] DEBUG phone#011 <- answer_confirmed q1=opt1
+[  20.466s] DEBUG phone#001 -> answer q2=opt2 (Sacred Games)
+[  20.507s] DEBUG projector <- submitted_update 0/23
+[  20.515s] DEBUG phone#016 <- answer_confirmed q1=opt5
+[  20.529s] DEBUG phone#019 -> answer q2=opt6 (No, I don't watch shows)
+[  20.544s] DEBUG phone#003 -> answer q2=opt2 (Sacred Games)
+[  20.577s] DEBUG phone#022 -> answer q2=opt1 (Brooklyn Nine-Nine)
+[  20.645s] DEBUG phone#006 <- answer_confirmed q2=opt5
+[  20.647s] DEBUG projector <- submitted_update 0/23
+[  20.649s] DEBUG projector <- submitted_update 1/23
+[  20.658s] DEBUG phone#021 <- answer_confirmed q3=opt3
+[  20.661s] DEBUG phone#002 -> answer q2=opt2 (Sacred Games)
+[  20.699s] DEBUG projector <- submitted_update 1/23
+[  20.710s] DEBUG phone#005 <- answer_confirmed q2=opt4
+[  20.732s] DEBUG phone#008 connected sid=MlPiAbIn-PB275dwAAA5 in 756ms
+[  20.771s] DEBUG projector <- submitted_update 1/23
+[  20.772s] DEBUG phone#001 <- answer_confirmed q2=opt2
+[  20.788s] DEBUG phone#013 -> answer q2=opt1 (Brooklyn Nine-Nine)
+[  20.818s] DEBUG phone#019 <- answer_confirmed q2=opt6
+[  20.819s] DEBUG projector <- submitted_update 1/23
+[  20.827s] DEBUG projector <- submitted_update 1/23
+[  20.832s] DEBUG phone#003 <- answer_confirmed q2=opt2
+[  20.865s] DEBUG phone#022 <- answer_confirmed q2=opt1
+[  20.866s] DEBUG projector <- submitted_update 1/23
+[  20.887s] DEBUG phone#011 -> answer q2=opt4 (Suits)
+[  20.931s] DEBUG phone#009 connected sid=sUL9seYpxrCap24_AAA6 in 692ms
+[  20.950s] DEBUG projector <- submitted_update 1/23
+[  20.951s] DEBUG phone#002 <- answer_confirmed q2=opt2
+[  21.062s] DEBUG projector <- submitted_update 1/23
+[  21.063s] DEBUG phone#013 <- answer_confirmed q2=opt1
+[  21.092s] DEBUG phone#008 <- state_sync  state=quiz_open people=23 myAnswers=2 teams=0
+[  21.093s] PASS  phone#8 reconnected, state_sync restored its 2 answers (expect 2), no one else's answers leaked: true
+[  21.096s] DEBUG phone#000 -> answer q2=opt5 (The Office)
+[  21.160s] DEBUG phone#011 <- answer_confirmed q2=opt4
+[  21.161s] DEBUG projector <- submitted_update 1/23
+[  21.282s] DEBUG phone#009 <- state_sync  state=quiz_open people=23 myAnswers=2 teams=0
+[  21.283s] PASS  phone#9 reconnected, state_sync restored its 2 answers (expect 2), no one else's answers leaked: true
+[  21.320s] DEBUG phone#003 -> answer q3=opt5 (Green tea / Kahwa)
+[  21.371s] DEBUG phone#016 -> answer q2=opt4 (Suits)
+[  21.375s] DEBUG projector <- submitted_update 1/23
+[  21.387s] DEBUG phone#000 <- answer_confirmed q2=opt5
+[  21.427s] DEBUG phone#014 -> answer q2=opt4 (Suits)
+[  21.512s] DEBUG phone#018 -> answer q2=opt4 (Suits)
+[  21.543s] DEBUG phone#010 -> answer q2=opt0 (Stranger Things)
+[  21.558s] DEBUG phone#020 -> answer q2=opt1 (Brooklyn Nine-Nine)
+[  21.561s] DEBUG phone#008 -> answer q2=opt1 (Brooklyn Nine-Nine)
+[  21.594s] DEBUG projector <- submitted_update 2/23
+[  21.601s] DEBUG phone#003 <- answer_confirmed q3=opt5
+[  21.602s] DEBUG phone#005 -> answer q3=opt1 (Coffee)
+[  21.663s] DEBUG projector <- submitted_update 2/23
+[  21.669s] DEBUG phone#016 <- answer_confirmed q2=opt4
+[  21.697s] DEBUG phone#011 -> answer q3=opt5 (Green tea / Kahwa)
+[  21.714s] DEBUG projector <- submitted_update 2/23
+[  21.722s] DEBUG phone#014 <- answer_confirmed q2=opt4
+[  21.732s] DEBUG phone#012 -> answer q3=opt2 (Soft drink)
+[  21.794s] DEBUG phone#018 <- answer_confirmed q2=opt4
+[  21.795s] DEBUG projector <- submitted_update 2/23
+[  21.823s] DEBUG projector <- submitted_update 2/23
+[  21.832s] DEBUG phone#010 <- answer_confirmed q2=opt0
+[  21.834s] DEBUG phone#020 <- answer_confirmed q2=opt1
+[  21.835s] DEBUG projector <- submitted_update 2/23
+[  21.879s] DEBUG projector <- submitted_update 2/23
+[  21.880s] DEBUG projector <- submitted_update 3/23
+[  21.883s] DEBUG phone#002 -> answer q3=opt1 (Coffee)
+[  21.888s] DEBUG phone#005 <- answer_confirmed q3=opt1
+[  21.970s] DEBUG phone#011 <- answer_confirmed q3=opt5
+[  21.973s] DEBUG projector <- submitted_update 4/23
+[  22.022s] DEBUG phone#013 -> answer q3=opt1 (Coffee)
+[  22.026s] DEBUG projector <- submitted_update 5/23
+[  22.029s] DEBUG phone#012 <- answer_confirmed q3=opt2
+[  22.097s] DEBUG phone#009 -> answer q2=opt0 (Stranger Things)
+[  22.169s] DEBUG projector <- submitted_update 6/23
+[  22.171s] DEBUG phone#006 -> answer q3=opt3 (Just water)
+[  22.175s] DEBUG phone#002 <- answer_confirmed q3=opt1
+[  22.187s] DEBUG phone#008 <- answer_confirmed q2=opt1
+[  22.297s] DEBUG phone#013 <- answer_confirmed q3=opt1
+[  22.298s] DEBUG projector <- submitted_update 7/23
+[  22.374s] DEBUG projector <- submitted_update 7/23
+[  22.375s] DEBUG phone#000 -> answer q3=opt2 (Soft drink)
+[  22.381s] DEBUG phone#009 <- answer_confirmed q2=opt0
+[  22.460s] DEBUG projector <- submitted_update 8/23
+[  22.461s] DEBUG phone#006 <- answer_confirmed q3=opt3
+[  22.562s] DEBUG phone#019 -> answer q3=opt4 (Energy drink)
+[  22.647s] DEBUG phone#001 -> answer q3=opt0 (Chai)
+[  22.655s] DEBUG projector <- submitted_update 9/23
+[  22.666s] DEBUG phone#000 <- answer_confirmed q3=opt2
+[  22.696s] DEBUG phone#014 -> answer q3=opt3 (Just water)
+[  22.759s] DEBUG phone#022 -> answer q3=opt4 (Energy drink)
+[  22.832s] DEBUG phone#018 -> answer q3=opt2 (Soft drink)
+[  22.848s] DEBUG phone#019 <- answer_confirmed q3=opt4
+[  22.849s] DEBUG projector <- submitted_update 10/23
+[  22.936s] DEBUG phone#001 <- answer_confirmed q3=opt0
+[  22.937s] DEBUG projector <- submitted_update 11/23
+[  22.981s] DEBUG projector <- submitted_update 12/23
+[  22.989s] DEBUG phone#014 <- answer_confirmed q3=opt3
+[  23.047s] DEBUG phone#020 -> answer q3=opt1 (Coffee)
+[  23.048s] DEBUG projector <- submitted_update 13/23
+[  23.051s] DEBUG phone#022 <- answer_confirmed q3=opt4
+[  23.111s] DEBUG projector <- submitted_update 14/23
+[  23.112s] DEBUG phone#018 <- answer_confirmed q3=opt2
+[  23.325s] DEBUG projector <- submitted_update 15/23
+[  23.329s] DEBUG phone#020 <- answer_confirmed q3=opt1
+[  23.365s] DEBUG phone#010 -> answer q3=opt1 (Coffee)
+[  23.642s] DEBUG phone#016 -> answer q3=opt5 (Green tea / Kahwa)
+[  23.645s] DEBUG projector <- submitted_update 16/23
+[  23.645s] DEBUG phone#008 -> answer q3=opt2 (Soft drink)
+[  23.654s] DEBUG phone#010 <- answer_confirmed q3=opt1
+[  23.661s] PASS  duplicate answer to the same question ignored
+[  23.915s] DEBUG phone#009 -> answer q3=opt5 (Green tea / Kahwa)
+[  23.933s] DEBUG projector <- submitted_update 17/23
+[  23.935s] DEBUG projector <- submitted_update 18/23
+[  23.942s] DEBUG phone#016 <- answer_confirmed q3=opt5
+[  23.948s] DEBUG phone#008 <- answer_confirmed q3=opt2
+[  24.193s] DEBUG projector <- submitted_update 19/23
+[  24.201s] DEBUG phone#009 <- answer_confirmed q3=opt5
+[  25.412s] PASS  server holds 82 answers (expect 82) (n=82 min=273ms p50=292ms p95=314ms max=629ms)
+[  25.413s] PASS  projector saw 82 answer_received events (expect 82)
+[  25.417s] PASS  submitted counter 19/23 (expect 19/23)
+[  25.420s] INFO  answer plans: all=19, partial=3, none=1; reconnects n=2 min=1044ms p50=1117ms p95=1117ms max=1117ms
+[  25.425s] PHASE 
+[  25.427s] PHASE ================================================================
+[  25.429s] PHASE 6. Make teams (first split)
+[  25.436s] PHASE ================================================================
+[  29.398s] DEBUG projector <- teams_formed sizes=[6, 5, 6, 6]
+[  29.399s] DEBUG projector <- session_update state=teams_formed
+[  29.405s] DEBUG phone#001 <- teams_formed Team 3 (6 people)
+[  29.409s] DEBUG phone#001 <- session_update state=teams_formed
+[  29.411s] DEBUG phone#002 <- teams_formed Team 4 (6 people)
+[  29.417s] DEBUG phone#002 <- session_update state=teams_formed
+[  29.426s] DEBUG phone#015 <- teams_formed Team 3 (6 people)
+[  29.430s] DEBUG phone#015 <- session_update state=teams_formed
+[  29.437s] DEBUG phone#012 <- teams_formed Team 2 (5 people)
+[  29.438s] DEBUG phone#012 <- session_update state=teams_formed
+[  29.440s] DEBUG phone#019 <- teams_formed Team 3 (6 people)
+[  29.441s] DEBUG phone#019 <- session_update state=teams_formed
+[  29.444s] DEBUG phone#011 <- teams_formed Team 4 (6 people)
+[  29.448s] DEBUG phone#011 <- session_update state=teams_formed
+[  29.459s] DEBUG phone#013 <- teams_formed Team 3 (6 people)
+[  29.460s] DEBUG phone#013 <- session_update state=teams_formed
+[  29.462s] DEBUG phone#018 <- teams_formed Team 1 (6 people)
+[  29.464s] DEBUG phone#018 <- session_update state=teams_formed
+[  29.468s] DEBUG phone#022 <- teams_formed Team 4 (6 people)
+[  29.471s] DEBUG phone#022 <- session_update state=teams_formed
+[  29.474s] DEBUG phone#020 <- teams_formed Team 1 (6 people)
+[  29.475s] DEBUG phone#020 <- session_update state=teams_formed
+[  29.478s] DEBUG phone#006 <- teams_formed Team 1 (6 people)
+[  29.478s] DEBUG phone#006 <- session_update state=teams_formed
+[  29.484s] DEBUG phone#021 <- teams_formed Team 4 (6 people)
+[  29.485s] DEBUG phone#021 <- session_update state=teams_formed
+[  29.491s] DEBUG phone#007 <- teams_formed Team 2 (5 people)
+[  29.493s] DEBUG phone#007 <- session_update state=teams_formed
+[  29.495s] DEBUG phone#008 <- teams_formed Team 2 (5 people)
+[  29.500s] DEBUG phone#008 <- session_update state=teams_formed
+[  29.502s] DEBUG phone#004 <- teams_formed Team 1 (6 people)
+[  29.506s] DEBUG phone#004 <- session_update state=teams_formed
+[  29.509s] DEBUG phone#005 <- teams_formed Team 2 (5 people)
+[  29.510s] DEBUG phone#005 <- session_update state=teams_formed
+[  29.516s] DEBUG phone#003 <- teams_formed Team 2 (5 people)
+[  29.517s] DEBUG phone#003 <- session_update state=teams_formed
+[  29.523s] DEBUG facilitator <- teams_formed sizes=[6, 5, 6, 6]
+[  29.525s] PASS  split 1: split computed and broadcast in 4086ms
+[  29.528s] DEBUG phone#009 <- teams_formed Team 1 (6 people)
+[  29.530s] DEBUG phone#009 <- session_update state=teams_formed
+[  29.533s] DEBUG phone#000 <- teams_formed Team 4 (6 people)
+[  29.538s] DEBUG phone#000 <- session_update state=teams_formed
+[  29.546s] DEBUG phone#016 <- teams_formed Team 3 (6 people)
+[  29.548s] DEBUG phone#016 <- session_update state=teams_formed
+[  29.550s] DEBUG phone#017 <- teams_formed Team 1 (6 people)
+[  29.551s] DEBUG phone#017 <- session_update state=teams_formed
+[  29.555s] DEBUG phone#010 <- teams_formed Team 4 (6 people)
+[  29.558s] DEBUG phone#010 <- session_update state=teams_formed
+[  29.561s] DEBUG phone#014 <- teams_formed Team 3 (6 people)
+[  29.564s] DEBUG phone#014 <- session_update state=teams_formed
+[  29.565s] PASS  split 1: 23/23 phones received teams_formed
+[  30.047s] PASS  split 1: 4 teams (expect 4)
+[  30.048s] PASS  split 1: every person in exactly one team (23 unique / 23 slots)
+[  30.050s] PASS  split 1: team sizes [6, 5, 6, 6] differ by at most 1
+[  30.052s] PASS  split 1: every participant.teamId matches its team list
+[  30.062s] PASS  split 1: 23/23 phones show the same team as the server
+[  30.067s] TABLE split 1: team breakdown
+[  30.068s] TABLE   Team 1  size   6 | women  2 men  4 | companies 6 | exp mean 2.33
+[  30.072s] DEBUG       Usman Shah 6           man    Faysal Bank Limited            Less than 2 years  The Office               Just water
+[  30.073s] DEBUG       Iqra Siddiqui 18       man    Aga Khan University            More than 15 years Suits                    Soft drink
+[  30.081s] DEBUG       Ayesha Qureshi 9       man    Carnelian Pvt Limited          6 to 10 years      Stranger Things          Green tea / Kahwa
+[  30.085s] DEBUG       Zainab Ahmed 20        woman  Not mentioned here             More than 15 years Brooklyn Nine-Nine       Coffee
+[  30.098s] DEBUG       Ali Ahmed 4            woman  Ismail Industries Limited      11 to 15 years     (no answer)              (no answer)
+[  30.101s] DEBUG       Sana Mirza 17          man    The Hub Power Company Limited  2 to 5 years       (no answer)              (no answer)
+[  30.106s] TABLE   Team 2  size   5 | women  2 men  3 | companies 5 | exp mean 2.00
+[  30.107s] DEBUG       Ali Siddiqui 8         woman  Carnelian Pvt Limited          2 to 5 years       Brooklyn Nine-Nine       Soft drink
+[  30.118s] DEBUG       Ahmed Tariq 3          woman  Martin Dow Marker Limited      11 to 15 years     Sacred Games             Green tea / Kahwa
+[  30.121s] DEBUG       Ahmed Iqbal 7          man    Welnox Limited                 6 to 10 years      (no answer)              (no answer)
+[  30.163s] DEBUG       Danish Qureshi 12      man    Faysal Bank Limited            Less than 2 years  No, I don't watch shows  Soft drink
+[  30.182s] DEBUG       Kiran Tariq 5          man    Pak Suzuki Motor Co. Ltd.      More than 15 years Suits                    Coffee
+[  30.183s] TABLE   Team 3  size   6 | women  3 men  3 | companies 5 | exp mean 2.20
+[  30.195s] DEBUG       Zainab Malik 14        man    Welnox Limited                 Less than 2 years  Suits                    Just water
+[  30.200s] DEBUG       Noor Mirza 13          woman  The Hub Power Company Limited  6 to 10 years      Brooklyn Nine-Nine       Coffee
+[  30.215s] DEBUG       Talha Malik 16         man    Ismail Industries Limited      11 to 15 years     Suits                    Green tea / Kahwa
+[  30.218s] DEBUG       Rabia Ali 15           man    (no answer)                    (no answer)        (no answer)              (no answer)
+[  30.232s] DEBUG       Fahad Javed 0          woman  Pak Suzuki Motor Co. Ltd.      6 to 10 years      Sacred Games             Chai
+[  30.235s] DEBUG       Sana Hassan 19         woman  Faysal Bank Limited            More than 15 years No, I don't watch shows  Energy drink
+[  30.262s] TABLE   Team 4  size   6 | women  3 men  3 | companies 6 | exp mean 2.17
+[  30.280s] DEBUG       Fahad Siddiqui 11      man    Faysal Bank Limited            More than 15 years Suits                    Green tea / Kahwa
+[  30.283s] DEBUG       Zainab Malik 22        woman  Aga Khan University            11 to 15 years     Brooklyn Nine-Nine       Energy drink
+[  30.297s] DEBUG       Omar Siddiqui 10       man    Ismail Industries Limited      Less than 2 years  Stranger Things          Coffee
+[  30.314s] DEBUG       Maryam Mirza 2         man    Carnelian Pvt Limited          2 to 5 years       Sacred Games             Coffee
+[  30.318s] DEBUG       Hira Farooq 21         woman  Martin Dow Marker Limited      11 to 15 years     Brooklyn Nine-Nine       Just water
+[  30.331s] DEBUG       Fahad Javed 0 (2)      woman  Welnox Limited                 6 to 10 years      The Office               Soft drink
+[  30.335s] PASS  split 1: gender "man" per team [4, 3, 3, 3] gap 1
+[  30.349s] PASS  split 1: gender "woman" per team [2, 2, 3, 3] gap 1
+[  30.351s] PASS  split 1: company "Pak Suzuki Motor Co. Ltd." per team [0, 1, 1, 0] gap 1
+[  30.365s] PASS  split 1: company "Faysal Bank Limited" per team [1, 1, 1, 1] gap 0
+[  30.368s] PASS  split 1: company "Aga Khan University" per team [1, 0, 0, 1] gap 1
+[  30.382s] PASS  split 1: company "Martin Dow Marker Limited" per team [0, 1, 0, 1] gap 1
+[  30.383s] PASS  split 1: company "Welnox Limited" per team [0, 1, 1, 1] gap 1
+[  30.398s] PASS  split 1: company "Ismail Industries Limited" per team [1, 0, 1, 1] gap 1
+[  30.401s] PASS  split 1: company "The Hub Power Company Limited" per team [1, 0, 1, 0] gap 1
+[  30.406s] PASS  split 1: company "Carnelian Pvt Limited" per team [1, 1, 0, 1] gap 1
+[  30.407s] PASS  split 1: experience "Less than 2 years" per team [1, 1, 1, 1] gap 0
+[  30.415s] PASS  split 1: experience "2 to 5 years" per team [1, 1, 0, 1] gap 1
+[  30.418s] PASS  split 1: experience "6 to 10 years" per team [1, 1, 2, 1] gap 1
+[  30.431s] PASS  split 1: experience "11 to 15 years" per team [1, 1, 1, 2] gap 1
+[  30.434s] PASS  split 1: experience "More than 15 years" per team [2, 1, 1, 1] gap 1
+[  30.440s] PHASE 
+[  30.441s] PHASE ================================================================
+[  30.450s] PHASE 7. Make teams again (reshuffle)
+[  30.453s] PHASE ================================================================
+[  33.932s] DEBUG phone#011 <- teams_formed Team 2 (6 people)
+[  33.935s] DEBUG phone#022 <- teams_formed Team 2 (6 people)
+[  33.938s] DEBUG phone#001 <- teams_formed Team 2 (6 people)
+[  33.959s] DEBUG phone#018 <- teams_formed Team 3 (6 people)
+[  33.960s] DEBUG phone#018 <- session_update state=teams_formed
+[  33.966s] DEBUG phone#002 <- teams_formed Team 3 (6 people)
+[  33.967s] DEBUG phone#002 <- session_update state=teams_formed
+[  33.979s] DEBUG phone#015 <- teams_formed Team 2 (6 people)
+[  33.998s] DEBUG phone#015 <- session_update state=teams_formed
+[  34.001s] DEBUG phone#021 <- teams_formed Team 3 (6 people)
+[  34.015s] DEBUG phone#021 <- session_update state=teams_formed
+[  34.019s] DEBUG phone#012 <- teams_formed Team 3 (6 people)
+[  34.029s] DEBUG phone#012 <- session_update state=teams_formed
+[  34.031s] DEBUG projector <- teams_formed sizes=[6, 6, 6, 5]
+[  34.032s] DEBUG projector <- session_update state=teams_formed
+[  34.035s] DEBUG phone#001 <- session_update state=teams_formed
+[  34.039s] DEBUG phone#020 <- teams_formed Team 1 (6 people)
+[  34.043s] DEBUG phone#020 <- session_update state=teams_formed
+[  34.046s] DEBUG phone#019 <- teams_formed Team 1 (6 people)
+[  34.064s] DEBUG phone#019 <- session_update state=teams_formed
+[  34.068s] DEBUG phone#022 <- session_update state=teams_formed
+[  34.073s] DEBUG phone#011 <- session_update state=teams_formed
+[  34.074s] DEBUG phone#006 <- teams_formed Team 4 (5 people)
+[  34.082s] DEBUG phone#006 <- session_update state=teams_formed
+[  34.085s] DEBUG phone#013 <- teams_formed Team 3 (6 people)
+[  34.099s] DEBUG phone#013 <- session_update state=teams_formed
+[  34.105s] DEBUG phone#007 <- teams_formed Team 4 (5 people)
+[  34.116s] DEBUG phone#007 <- session_update state=teams_formed
+[  34.121s] DEBUG facilitator <- teams_formed sizes=[6, 6, 6, 5]
+[  34.132s] PASS  split 2: split computed and broadcast in 3672ms
+[  34.135s] DEBUG phone#010 <- teams_formed Team 2 (6 people)
+[  34.146s] DEBUG phone#010 <- session_update state=teams_formed
+[  34.165s] DEBUG phone#004 <- teams_formed Team 1 (6 people)
+[  34.168s] DEBUG phone#004 <- session_update state=teams_formed
+[  34.174s] DEBUG phone#008 <- teams_formed Team 4 (5 people)
+[  34.175s] DEBUG phone#008 <- session_update state=teams_formed
+[  34.184s] DEBUG phone#003 <- teams_formed Team 4 (5 people)
+[  34.189s] DEBUG phone#003 <- session_update state=teams_formed
+[  34.190s] DEBUG phone#000 <- teams_formed Team 2 (6 people)
+[  34.199s] DEBUG phone#000 <- session_update state=teams_formed
+[  34.201s] DEBUG phone#014 <- teams_formed Team 1 (6 people)
+[  34.217s] DEBUG phone#014 <- session_update state=teams_formed
+[  34.221s] DEBUG phone#005 <- teams_formed Team 4 (5 people)
+[  34.233s] DEBUG phone#005 <- session_update state=teams_formed
+[  34.235s] DEBUG phone#017 <- teams_formed Team 1 (6 people)
+[  34.239s] DEBUG phone#017 <- session_update state=teams_formed
+[  34.240s] DEBUG phone#009 <- teams_formed Team 1 (6 people)
+[  34.248s] DEBUG phone#009 <- session_update state=teams_formed
+[  34.251s] DEBUG phone#016 <- teams_formed Team 3 (6 people)
+[  34.255s] DEBUG phone#016 <- session_update state=teams_formed
+[  34.257s] PASS  split 2: 23/23 phones received teams_formed
+[  34.603s] PASS  split 2: 4 teams (expect 4)
+[  34.603s] PASS  split 2: every person in exactly one team (23 unique / 23 slots)
+[  34.605s] PASS  split 2: team sizes [6, 6, 6, 5] differ by at most 1
+[  34.606s] PASS  split 2: every participant.teamId matches its team list
+[  34.612s] PASS  split 2: 23/23 phones show the same team as the server
+[  34.629s] TABLE split 2: team breakdown
+[  34.648s] TABLE   Team 1  size   6 | women  3 men  3 | companies 6 | exp mean 2.33
+[  34.651s] DEBUG       Sana Hassan 19         woman  Faysal Bank Limited            More than 15 years No, I don't watch shows  Energy drink
+[  34.663s] DEBUG       Ayesha Qureshi 9       man    Carnelian Pvt Limited          6 to 10 years      Stranger Things          Green tea / Kahwa
+[  34.682s] DEBUG       Ali Ahmed 4            woman  Ismail Industries Limited      11 to 15 years     (no answer)              (no answer)
+[  34.685s] DEBUG       Sana Mirza 17          man    The Hub Power Company Limited  2 to 5 years       (no answer)              (no answer)
+[  34.699s] DEBUG       Zainab Ahmed 20        woman  Not mentioned here             More than 15 years Brooklyn Nine-Nine       Coffee
+[  34.703s] DEBUG       Zainab Malik 14        man    Welnox Limited                 Less than 2 years  Suits                    Just water
+[  34.729s] TABLE   Team 2  size   6 | women  3 men  3 | companies 5 | exp mean 2.20
+[  34.748s] DEBUG       Rabia Ali 15           man    (no answer)                    (no answer)        (no answer)              (no answer)
+[  34.751s] DEBUG       Fahad Javed 0 (2)      woman  Welnox Limited                 6 to 10 years      The Office               Soft drink
+[  34.755s] DEBUG       Zainab Malik 22        woman  Aga Khan University            11 to 15 years     Brooklyn Nine-Nine       Energy drink
+[  34.756s] DEBUG       Omar Siddiqui 10       man    Ismail Industries Limited      Less than 2 years  Stranger Things          Coffee
+[  34.765s] DEBUG       Fahad Javed 0          woman  Pak Suzuki Motor Co. Ltd.      6 to 10 years      Sacred Games             Chai
+[  34.772s] DEBUG       Fahad Siddiqui 11      man    Faysal Bank Limited            More than 15 years Suits                    Green tea / Kahwa
+[  34.773s] TABLE   Team 3  size   6 | women  2 men  4 | companies 6 | exp mean 2.17
+[  34.780s] DEBUG       Danish Qureshi 12      man    Faysal Bank Limited            Less than 2 years  No, I don't watch shows  Soft drink
+[  34.784s] DEBUG       Talha Malik 16         man    Ismail Industries Limited      11 to 15 years     Suits                    Green tea / Kahwa
+[  34.796s] DEBUG       Hira Farooq 21         woman  Martin Dow Marker Limited      11 to 15 years     Brooklyn Nine-Nine       Just water
+[  34.815s] DEBUG       Noor Mirza 13          woman  The Hub Power Company Limited  6 to 10 years      Brooklyn Nine-Nine       Coffee
+[  34.816s] DEBUG       Maryam Mirza 2         man    Carnelian Pvt Limited          2 to 5 years       Sacred Games             Coffee
+[  34.820s] DEBUG       Iqra Siddiqui 18       man    Aga Khan University            More than 15 years Suits                    Soft drink
+[  34.821s] TABLE   Team 4  size   5 | women  2 men  3 | companies 5 | exp mean 2.00
+[  34.832s] DEBUG       Ali Siddiqui 8         woman  Carnelian Pvt Limited          2 to 5 years       Brooklyn Nine-Nine       Soft drink
+[  34.836s] DEBUG       Kiran Tariq 5          man    Pak Suzuki Motor Co. Ltd.      More than 15 years Suits                    Coffee
+[  34.843s] DEBUG       Ahmed Iqbal 7          man    Welnox Limited                 6 to 10 years      (no answer)              (no answer)
+[  34.843s] DEBUG       Usman Shah 6           man    Faysal Bank Limited            Less than 2 years  The Office               Just water
+[  34.849s] DEBUG       Ahmed Tariq 3          woman  Martin Dow Marker Limited      11 to 15 years     Sacred Games             Green tea / Kahwa
+[  34.855s] PASS  split 2: gender "woman" per team [3, 3, 2, 2] gap 1
+[  34.856s] PASS  split 2: gender "man" per team [3, 3, 4, 3] gap 1
+[  34.865s] PASS  split 2: company "Pak Suzuki Motor Co. Ltd." per team [0, 1, 0, 1] gap 1
+[  34.868s] PASS  split 2: company "Faysal Bank Limited" per team [1, 1, 1, 1] gap 0
+[  34.870s] PASS  split 2: company "Aga Khan University" per team [0, 1, 1, 0] gap 1
+[  34.885s] PASS  split 2: company "Martin Dow Marker Limited" per team [0, 0, 1, 1] gap 1
+[  34.887s] PASS  split 2: company "Welnox Limited" per team [1, 1, 0, 1] gap 1
+[  34.894s] PASS  split 2: company "Ismail Industries Limited" per team [1, 1, 1, 0] gap 1
+[  34.894s] PASS  split 2: company "The Hub Power Company Limited" per team [1, 0, 1, 0] gap 1
+[  34.900s] PASS  split 2: company "Carnelian Pvt Limited" per team [1, 0, 1, 1] gap 1
+[  34.901s] PASS  split 2: experience "Less than 2 years" per team [1, 1, 1, 1] gap 0
+[  34.904s] PASS  split 2: experience "2 to 5 years" per team [1, 0, 1, 1] gap 1
+[  34.905s] PASS  split 2: experience "6 to 10 years" per team [1, 2, 1, 1] gap 1
+[  34.915s] PASS  split 2: experience "11 to 15 years" per team [1, 1, 2, 1] gap 1
+[  34.926s] PASS  split 2: experience "More than 15 years" per team [2, 1, 1, 1] gap 1
+[  34.928s] INFO  split 2: 23/23 people ended up with a different set of teammates
+[  34.933s] PHASE 
+[  34.938s] PHASE ================================================================
+[  34.944s] PHASE 8. Late answers after teams are formed are ignored
+[  34.946s] PHASE ================================================================
+[  36.163s] PASS  phone#15 answer after teams_formed ignored
+[  36.164s] PHASE 
+[  36.168s] PHASE ================================================================
+[  36.169s] PHASE 9. Lost phone: same person rejoins with a new id
+[  36.176s] PHASE ================================================================
+[  36.181s] DEBUG phone#010 -- disconnected (io client disconnect)
+[  38.237s] PASS  "Omar Siddiqui 10" recovered original id=lt_mw3smcts_10 team=team_2 (expect lt_mw3smcts_10 / team_2)
+[  38.549s] PASS  no duplicate person created (people=23)
+[  38.550s] PHASE 
+[  38.550s] PHASE ================================================================
+[  38.551s] PHASE 10. Same name, both online: new person is created, not merged
+[  38.551s] PHASE ================================================================
+[  39.602s] DEBUG facilitator <- participants_update people=24
+[  39.625s] PASS  third "Fahad Javed 0" became new person "Fahad Javed 0 (3)" with no team (teamId=null)
+[  39.626s] PHASE 
+[  39.627s] PHASE ================================================================
+[  39.627s] PHASE 11. Facilitator: move and remove
+[  39.628s] PHASE ================================================================
+[  39.915s] DEBUG phone#002 <- teams_formed Team 3 (5 people)
+[  39.917s] DEBUG phone#001 <- teams_formed Team 2 (6 people)
+[  39.919s] DEBUG projector <- teams_formed sizes=[7, 6, 5, 5]
+[  39.922s] DEBUG phone#021 <- teams_formed Team 3 (5 people)
+[  39.924s] DEBUG phone#015 <- teams_formed Team 2 (6 people)
+[  39.928s] DEBUG phone#022 <- teams_formed Team 2 (6 people)
+[  39.930s] DEBUG phone#012 <- teams_formed Team 1 (7 people)
+[  39.937s] DEBUG phone#019 <- teams_formed Team 1 (7 people)
+[  39.939s] DEBUG phone#013 <- teams_formed Team 3 (5 people)
+[  39.941s] DEBUG phone#006 <- teams_formed Team 4 (5 people)
+[  39.942s] DEBUG phone#011 <- teams_formed Team 2 (6 people)
+[  39.943s] DEBUG phone#018 <- teams_formed Team 3 (5 people)
+[  39.945s] DEBUG phone#020 <- teams_formed Team 1 (7 people)
+[  39.946s] DEBUG phone#005 <- teams_formed Team 4 (5 people)
+[  39.950s] DEBUG phone#003 <- teams_formed Team 4 (5 people)
+[  39.952s] DEBUG phone#000 <- teams_formed Team 2 (6 people)
+[  39.958s] DEBUG phone#007 <- teams_formed Team 4 (5 people)
+[  39.961s] DEBUG phone#014 <- teams_formed Team 1 (7 people)
+[  39.968s] DEBUG facilitator <- teams_formed sizes=[7, 6, 5, 5]
+[  39.970s] DEBUG phone#008 <- teams_formed Team 4 (5 people)
+[  39.972s] DEBUG phone#017 <- teams_formed Team 1 (7 people)
+[  39.978s] DEBUG phone#009 <- teams_formed Team 1 (7 people)
+[  39.980s] DEBUG phone#016 <- teams_formed Team 3 (5 people)
+[  39.984s] DEBUG phone#004 <- teams_formed Team 1 (7 people)
+[  40.244s] PASS  moved "Danish Qureshi 12" team_3 -> team_1, phone notified
+[  40.541s] DEBUG projector <- teams_formed sizes=[7, 6, 5, 5]
+[  40.543s] DEBUG phone#001 <- teams_formed Team 2 (6 people)
+[  40.545s] DEBUG phone#022 <- teams_formed Team 2 (6 people)
+[  40.546s] DEBUG phone#011 <- teams_formed Team 2 (6 people)
+[  40.547s] DEBUG phone#018 <- teams_formed Team 3 (5 people)
+[  40.550s] DEBUG phone#002 <- teams_formed Team 3 (5 people)
+[  40.553s] DEBUG phone#015 <- teams_formed Team 2 (6 people)
+[  40.555s] DEBUG phone#006 <- teams_formed Team 4 (5 people)
+[  40.558s] DEBUG phone#019 <- teams_formed Team 1 (7 people)
+[  40.559s] DEBUG phone#013 <- teams_formed Team 3 (5 people)
+[  40.560s] DEBUG phone#012 <- teams_formed Team 1 (7 people)
+[  40.562s] DEBUG phone#020 <- teams_formed Team 1 (7 people)
+[  40.563s] DEBUG phone#021 <- teams_formed Team 3 (5 people)
+[  40.565s] DEBUG facilitator <- participants_update people=23
+[  40.569s] DEBUG facilitator <- teams_formed sizes=[7, 6, 5, 5]
+[  40.570s] DEBUG phone#007 <- teams_formed Team 4 (5 people)
+[  40.572s] DEBUG phone#016 <- teams_formed Team 3 (5 people)
+[  40.577s] DEBUG phone#008 <- teams_formed Team 4 (5 people)
+[  40.586s] DEBUG phone#003 <- teams_formed Team 4 (5 people)
+[  40.590s] DEBUG phone#004 <- teams_formed Team 1 (7 people)
+[  40.592s] DEBUG phone#014 <- teams_formed Team 1 (7 people)
+[  40.599s] DEBUG phone#009 <- teams_formed Team 1 (7 people)
+[  40.601s] DEBUG phone#005 <- teams_formed Team 4 (5 people)
+[  40.603s] DEBUG phone#000 <- teams_formed Team 2 (6 people)
+[  40.610s] DEBUG phone#017 <- teams_formed Team 1 (7 people)
+[  40.851s] PASS  removed the extra person from room, teams and answers
+[  40.852s] PHASE 
+[  40.855s] PHASE ================================================================
+[  40.860s] PHASE 12. Late joiner after teams are formed
+[  40.861s] PHASE ================================================================
+[  42.285s] DEBUG facilitator <- participants_update people=24
+[  42.289s] PASS  late joiner added with no team (use Manual override or Make teams again to place them)
+[  42.292s] PHASE 
+[  42.292s] PHASE ================================================================
+[  42.292s] PHASE 13. Every phone refreshes at once (request_sync)
+[  42.292s] PHASE ================================================================
+[  42.582s] DEBUG phone#013 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.584s] DEBUG phone#011 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.590s] DEBUG phone#011 <- teams_formed Team 2 (6 people)
+[  42.594s] DEBUG projector <- teams_formed sizes=[7, 6, 5, 5]
+[  42.597s] DEBUG phone#018 <- teams_formed Team 3 (5 people)
+[  42.602s] DEBUG phone#018 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.605s] DEBUG phone#021 <- teams_formed Team 3 (5 people)
+[  42.611s] DEBUG phone#022 <- teams_formed Team 2 (6 people)
+[  42.614s] DEBUG phone#001 <- teams_formed Team 2 (6 people)
+[  42.617s] DEBUG phone#001 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.623s] DEBUG phone#015 <- teams_formed Team 2 (6 people)
+[  42.627s] DEBUG phone#015 <- state_sync  state=teams_formed people=23 myAnswers=0 teams=4
+[  42.631s] DEBUG phone#012 <- teams_formed Team 1 (7 people)
+[  42.635s] DEBUG phone#012 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.637s] DEBUG phone#019 <- teams_formed Team 1 (7 people)
+[  42.644s] DEBUG phone#019 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.653s] DEBUG phone#006 <- teams_formed Team 4 (5 people)
+[  42.657s] DEBUG phone#006 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.659s] DEBUG phone#002 <- teams_formed Team 3 (5 people)
+[  42.661s] DEBUG phone#002 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.670s] DEBUG phone#013 <- teams_formed Team 3 (5 people)
+[  42.674s] DEBUG phone#020 <- teams_formed Team 1 (7 people)
+[  42.676s] DEBUG phone#020 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.680s] DEBUG phone#003 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.684s] DEBUG phone#003 <- teams_formed Team 4 (5 people)
+[  42.685s] DEBUG phone#005 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.688s] DEBUG phone#005 <- teams_formed Team 4 (5 people)
+[  42.699s] DEBUG phone#000 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.703s] DEBUG phone#000 <- teams_formed Team 2 (6 people)
+[  42.704s] DEBUG phone#009 <- state_sync  state=teams_formed people=24 myAnswers=4 teams=4
+[  42.710s] DEBUG phone#009 <- teams_formed Team 1 (7 people)
+[  42.713s] DEBUG phone#007 <- teams_formed Team 4 (5 people)
+[  42.717s] DEBUG phone#007 <- state_sync  state=teams_formed people=23 myAnswers=2 teams=4
+[  42.719s] DEBUG phone#004 <- teams_formed Team 1 (7 people)
+[  42.722s] DEBUG phone#004 <- state_sync  state=teams_formed people=23 myAnswers=2 teams=4
+[  42.724s] DEBUG phone#014 <- teams_formed Team 1 (7 people)
+[  42.729s] DEBUG phone#014 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.736s] DEBUG facilitator <- participants_update people=23
+[  42.736s] DEBUG facilitator <- teams_formed sizes=[7, 6, 5, 5]
+[  42.741s] DEBUG phone#017 <- teams_formed Team 1 (7 people)
+[  42.744s] DEBUG phone#017 <- state_sync  state=teams_formed people=23 myAnswers=2 teams=4
+[  42.746s] DEBUG phone#008 <- teams_formed Team 4 (5 people)
+[  42.760s] DEBUG phone#008 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.764s] DEBUG phone#021 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.769s] DEBUG phone#016 <- teams_formed Team 3 (5 people)
+[  42.771s] DEBUG phone#016 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.788s] DEBUG phone#022 <- state_sync  state=teams_formed people=23 myAnswers=4 teams=4
+[  42.790s] PASS  23/23 phones got state_sync with teams and only their own answers (n=23 min=284ms p50=389ms p95=479ms max=485ms)
+[  42.791s] PHASE 
+[  42.793s] PHASE ================================================================
+[  42.798s] PHASE 14. Reset
+[  42.810s] PHASE ================================================================
+[  43.104s] DEBUG phone#011 <- reset
+[  43.105s] DEBUG phone#015 <- reset
+[  43.106s] DEBUG phone#018 <- reset
+[  43.108s] DEBUG phone#022 <- reset
+[  43.109s] DEBUG phone#019 <- reset
+[  43.110s] DEBUG phone#012 <- reset
+[  43.111s] DEBUG phone#002 <- reset
+[  43.112s] DEBUG phone#013 <- reset
+[  43.114s] DEBUG phone#021 <- reset
+[  43.116s] DEBUG phone#020 <- reset
+[  43.118s] DEBUG phone#006 <- reset
+[  43.119s] DEBUG phone#001 <- reset
+[  43.121s] DEBUG phone#005 <- reset
+[  43.122s] DEBUG phone#007 <- reset
+[  43.123s] DEBUG phone#004 <- reset
+[  43.125s] DEBUG phone#008 <- reset
+[  43.126s] DEBUG phone#017 <- reset
+[  43.127s] DEBUG phone#009 <- reset
+[  43.128s] DEBUG phone#000 <- reset
+[  43.131s] DEBUG phone#016 <- reset
+[  43.132s] DEBUG phone#003 <- reset
+[  43.133s] DEBUG phone#014 <- reset
+[  43.134s] PASS  23/23 phones got reset
+[  43.445s] PASS  server is empty and idle after reset
+[  43.446s] PHASE 
+[  43.451s] PHASE ================================================================
+[  43.453s] PHASE SUMMARY
+[  43.457s] PHASE ================================================================
+[  43.459s] INFO  server            https://constellation-backend-4d88.onrender.com
+[  43.464s] INFO  phones            23
+[  43.476s] INFO  connect           n=25 min=692ms p50=1624ms p95=2109ms max=2492ms
+[  43.480s] INFO  join              n=23 min=280ms p50=295ms p95=308ms max=313ms
+[  43.491s] INFO  answer confirm    n=82 min=273ms p50=292ms p95=314ms max=629ms
+[  43.495s] INFO  reconnect + sync  n=2 min=1044ms p50=1117ms p95=1117ms max=1117ms
+[  43.506s] INFO  make teams        n=2 min=3672ms p50=4086ms p95=4086ms max=4086ms
+[  43.511s] INFO  teams to phones   n=46 min=3473ms p50=3968ms p95=4111ms max=4122ms
+[  43.516s] INFO  full refresh      n=23 min=284ms p50=389ms p95=479ms max=485ms
+[  43.518s] INFO  projector events  {"answer_received":82,"participants_update":27,"submitted_update":82,"teams_formed":5,"session_update":3}
+[  43.523s] INFO  room_count events 617
+[  43.525s] INFO  checks            78 passed, 0 warnings, 0 failed
+[  43.528s] INFO  RESULT: ALL GOOD
+[  43.530s] INFO  full log written to loadtest.log
+[  43.543s] DEBUG phone#000 -- disconnected (io client disconnect)
+[  43.544s] DEBUG phone#001 -- disconnected (io client disconnect)
+[  43.549s] DEBUG phone#002 -- disconnected (io client disconnect)
+[  43.554s] DEBUG phone#003 -- disconnected (io client disconnect)
+[  43.556s] DEBUG phone#004 -- disconnected (io client disconnect)
+[  43.561s] DEBUG phone#005 -- disconnected (io client disconnect)
+[  43.567s] DEBUG phone#006 -- disconnected (io client disconnect)
+[  43.577s] DEBUG phone#007 -- disconnected (io client disconnect)
+[  43.583s] DEBUG phone#008 -- disconnected (io client disconnect)
+[  43.594s] DEBUG phone#009 -- disconnected (io client disconnect)
+[  43.599s] DEBUG phone#011 -- disconnected (io client disconnect)
+[  43.609s] DEBUG phone#012 -- disconnected (io client disconnect)
+[  43.614s] DEBUG phone#013 -- disconnected (io client disconnect)
+[  43.622s] DEBUG phone#014 -- disconnected (io client disconnect)
+[  43.625s] DEBUG phone#015 -- disconnected (io client disconnect)
+[  43.629s] DEBUG phone#016 -- disconnected (io client disconnect)
+[  43.634s] DEBUG phone#017 -- disconnected (io client disconnect)
+[  43.637s] DEBUG phone#018 -- disconnected (io client disconnect)
+[  43.640s] DEBUG phone#019 -- disconnected (io client disconnect)
+[  43.645s] DEBUG phone#020 -- disconnected (io client disconnect)
+[  43.646s] DEBUG phone#021 -- disconnected (io client disconnect)
+[  43.659s] DEBUG phone#022 -- disconnected (io client disconnect)

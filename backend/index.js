@@ -17,7 +17,7 @@ const io = new Server(server, {
 // ============================================================
 const QUESTIONS = [
   { text: "How many years of work experience do you have?", options: ["Less than 2 years", "2 to 5 years", "6 to 10 years", "11 to 15 years", "More than 15 years"] },
-  { text: "Which company are you from?", options: ["Pak Suzuki Motor Co. Ltd.", "Faysal Bank Limited", "Aga Khan University", "Martin Dow Marker Limited", "Welnox Limited", "Ismail Industries Limited", "The Hub Power Company Limited", "Carnelian Pvt Limited", "Not mentioned here"] },
+  { text: "Which company are you from?", options: ["Pak Suzuki Motor Co. Ltd.", "Faysal Bank Limited", "Aga Khan University", "Martin Dow Marker Limited", "Welnox Limited", "Ismail Industries Limited", "The Hub Power Company Limited", "Carnelian", "Not mentioned / Currently not working"] },
   { text: "What's your favourite show?", options: ["Stranger Things", "Brooklyn Nine-Nine", "Sacred Games", "Friends", "Suits", "The Office", "No, I don't watch shows"] },
   { text: "Your go-to drink?", options: ["Chai", "Coffee", "Soft drink", "Just water", "Energy drink", "Green tea / Kahwa"] },
 ];
@@ -27,15 +27,15 @@ const Q_EXPERIENCE = 0;
 const Q_COMPANY = 1;
 const Q_SHOW = 2;
 const Q_DRINK = 3;
-const COMPANY_OTHER = QUESTIONS[Q_COMPANY].options.indexOf('Not mentioned here'); // could be anyone, so not balanced
+const COMPANY_OTHER = QUESTIONS[Q_COMPANY].options.length - 1; // last option: not mentioned / not working, so not balanced
 
 const TEAM_COUNT = 4;
 const TEAM_COLOURS = ["#FF3B3B", "#FFC400", "#1EA7FF", "#2EDB6B"];
 const GENDERS = ['man', 'woman'];
 
-// Balance weights. Company, gender and experience carry the most (equal) weight;
-// the two fun questions only nudge the result once those three are even.
-const WEIGHTS = { company: 1, gender: 1, experience: 1, experienceMean: 0.5, show: 0.1, drink: 0.1 };
+// Balance weights, in priority order: gender first, then company, then experience.
+// The two fun questions only nudge the result once those three are even.
+const WEIGHTS = { gender: 4, company: 2, experience: 1, experienceMean: 0.5, show: 0.1, drink: 0.1 };
 
 // ============================================================
 // STATE (flat, in-memory)
@@ -127,47 +127,77 @@ function runSplit() {
   });
   const expMean = expN ? expSum / expN : 0;
 
-  function teamCost(members) {
-    const counts = {};
-    FIELDS.forEach(f => { counts[f] = {}; });
-    let eSum = 0, eN = 0;
-    members.forEach(pid => {
-      const p = prof[pid];
-      FIELDS.forEach(f => { const v = p[f]; if (v !== null && v !== undefined) counts[f][v] = (counts[f][v] || 0) + 1; });
-      if (p.experience !== null) { eSum += p.experience; eN++; }
-    });
+  // Running tallies per team, so a swap is scored in constant time instead of
+  // recounting whole teams. Keeps "Make teams" fast for any room size.
+  const ideal = {};
+  FIELDS.forEach(f => { ideal[f] = {}; Object.keys(totals[f]).forEach(v => { ideal[f][v] = totals[f][v] / TEAM_COUNT; }); });
+
+  function buildTally(group) {
+    const t = { counts: {}, eSum: 0, eN: 0 };
+    FIELDS.forEach(f => { t.counts[f] = {}; });
+    group.forEach(pid => addTo(t, prof[pid], 1));
+    return t;
+  }
+  function addTo(t, p, d) {
+    FIELDS.forEach(f => { const v = p[f]; if (v !== null && v !== undefined) t.counts[f][v] = (t.counts[f][v] || 0) + d; });
+    if (p.experience !== null) { t.eSum += d * p.experience; t.eN += d; }
+  }
+  function meanCost(sum, n) {
+    if (!n) return 0;
+    const d = sum / n - expMean;
+    return WEIGHTS.experienceMean * d * d * n;
+  }
+  function tallyCost(t) {
     let cost = 0;
     FIELDS.forEach(f => {
-      Object.keys(totals[f]).forEach(v => {
-        const diff = (counts[f][v] || 0) - totals[f][v] / TEAM_COUNT;
-        cost += WEIGHTS[f] * diff * diff;
-      });
+      Object.keys(totals[f]).forEach(v => { const diff = (t.counts[f][v] || 0) - ideal[f][v]; cost += WEIGHTS[f] * diff * diff; });
     });
-    if (eN) { const d = eSum / eN - expMean; cost += WEIGHTS.experienceMean * d * d * eN; }
-    return cost;
+    return cost + meanCost(t.eSum, t.eN);
+  }
+  // Change in total cost if person x (in team ta) and person y (in team tb) swap.
+  function swapDelta(ta, tb, x, y) {
+    let delta = 0;
+    FIELDS.forEach(f => {
+      const vx = x[f], vy = y[f];
+      if (vx === vy) return;
+      const step = (t, v, d) => {
+        if (v === null || v === undefined) return 0;
+        const c = (t.counts[f][v] || 0) - ideal[f][v];
+        return WEIGHTS[f] * (2 * d * c + d * d);
+      };
+      delta += step(ta, vx, -1) + step(ta, vy, +1) + step(tb, vy, -1) + step(tb, vx, +1);
+    });
+    const ex = x.experience === null ? null : x.experience;
+    const ey = y.experience === null ? null : y.experience;
+    if (ex !== ey) {
+      const aSum = ta.eSum - (ex ?? 0) + (ey ?? 0), aN = ta.eN - (ex === null ? 0 : 1) + (ey === null ? 0 : 1);
+      const bSum = tb.eSum - (ey ?? 0) + (ex ?? 0), bN = tb.eN - (ey === null ? 0 : 1) + (ex === null ? 0 : 1);
+      delta += meanCost(aSum, aN) + meanCost(bSum, bN) - meanCost(ta.eSum, ta.eN) - meanCost(tb.eSum, tb.eN);
+    }
+    return delta;
   }
 
-  const restarts = ids.length <= 40 ? 60 : ids.length <= 100 ? 15 : 6;
+  const restarts = ids.length <= 60 ? 80 : ids.length <= 200 ? 30 : ids.length <= 600 ? 12 : 4;
   let best = null, bestCost = Infinity;
 
   for (let r = 0; r < restarts; r++) {
     // Deal shuffled people round-robin, so team sizes never differ by more than one.
     const groups = Array.from({ length: TEAM_COUNT }, () => []);
     shuffle(ids).forEach((pid, i) => groups[i % TEAM_COUNT].push(pid));
-    const costs = groups.map(teamCost);
+    const tallies = groups.map(buildTally);
 
     let improved = true, passes = 0;
-    while (improved && passes < 30) {
+    while (improved && passes < 40) {
       improved = false; passes++;
       for (let a = 0; a < TEAM_COUNT; a++) {
         for (let b = a + 1; b < TEAM_COUNT; b++) {
           for (let i = 0; i < groups[a].length; i++) {
             for (let j = 0; j < groups[b].length; j++) {
-              const A = groups[a].slice(), B = groups[b].slice();
-              [A[i], B[j]] = [B[j], A[i]];
-              const ca = teamCost(A), cb = teamCost(B);
-              if (ca + cb < costs[a] + costs[b] - 1e-9) {
-                groups[a] = A; groups[b] = B; costs[a] = ca; costs[b] = cb;
+              const x = prof[groups[a][i]], y = prof[groups[b][j]];
+              if (swapDelta(tallies[a], tallies[b], x, y) < -1e-9) {
+                addTo(tallies[a], x, -1); addTo(tallies[a], y, 1);
+                addTo(tallies[b], y, -1); addTo(tallies[b], x, 1);
+                [groups[a][i], groups[b][j]] = [groups[b][j], groups[a][i]];
                 improved = true;
               }
             }
@@ -176,7 +206,7 @@ function runSplit() {
       }
     }
 
-    const total = costs.reduce((s, c) => s + c, 0);
+    const total = tallies.reduce((s, t) => s + tallyCost(t), 0);
     if (total < bestCost - 1e-9) { bestCost = total; best = groups.map(g => g.slice()); }
   }
 
@@ -251,7 +281,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => markOffline(socket));
 
   socket.on('join', ({ id, name, gender } = {}) => {
-    if (!name || name.trim().length === 0 || name.length > 20) {
+    if (!name || name.trim().length === 0 || name.trim().length > 40) {
       socket.emit('join_error', { message: 'Invalid name' });
       return;
     }

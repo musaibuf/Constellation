@@ -394,7 +394,7 @@ function ParticipantView() {
   function handleJoin(e) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (trimmed.length === 0 || trimmed.length > 20) { setJoinError('Enter 1-20 characters.'); return; }
+    if (trimmed.length === 0 || trimmed.length > 40) { setJoinError('Enter 1-40 characters.'); return; }
     if (!gender) { setJoinError('Please select your gender.'); return; }
     setJoinError('');
     socket.emit('join', { id: participantId, name: trimmed, gender });
@@ -435,7 +435,7 @@ function ParticipantView() {
             <span className="lc-badge" style={{ marginBottom: 18, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="users" size={14} /> Team Formation</span>
             <h1 className="lc-h1" style={{ marginBottom: 10 }}>Join the room</h1>
             <p className="lc-sub" style={{ marginBottom: 26 }}>Please write your name</p>
-            <input className="lc-input" value={name} maxLength={20} placeholder="Your name"
+            <input className="lc-input" value={name} maxLength={40} placeholder="Your name"
               onChange={(e) => setName(e.target.value)} autoFocus autoComplete="off" />
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
               {[['man', 'Man'], ['woman', 'Woman']].map(([val, label]) => (
