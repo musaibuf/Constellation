@@ -17,9 +17,10 @@ const io = new Server(server, {
 // ============================================================
 const QUESTIONS = [
   { text: "How many years of work experience do you have?", options: ["Less than 2 years", "2 to 5 years", "6 to 10 years", "11 to 15 years", "More than 15 years"] },
-  { text: "Which company are you from?", options: ["Pak Suzuki Motor Co. Ltd.", "Faysal Bank Limited", "Aga Khan University", "Martin Dow Limited", "Welnox Limited", "Ismail Industries Limited", "The Hub Power Company Limited", "Carnelian", "Currently not working"] },
+  { text: "Which department are you from?", options: ["People", "CHSEQ", "Distribution", "Finance", "Marketing & Communication", "Legal Affairs", "Risk Management", "Supply Chain Management", "Information Technology", "Internal Audit", "Other"] },
   { text: "What's your favourite show?", options: ["Stranger Things", "Brooklyn Nine-Nine", "Sacred Games", "Friends", "Suits", "The Office", "No, I don't watch shows"] },
   { text: "Your go-to drink?", options: ["Chai", "Coffee", "Soft drink", "Just water", "Energy drink", "Green tea / Kahwa"] },
+  { text: "What's your phone battery right now?", options: ["Below 10%", "10% to 25%", "26% to 40%", "41% to 60%", "61% to 80%", "81% to 99%", "100%"] },
 ];
 
 // Which question feeds which part of the team balance.
@@ -27,15 +28,22 @@ const Q_EXPERIENCE = 0;
 const Q_COMPANY = 1;
 const Q_SHOW = 2;
 const Q_DRINK = 3;
-const COMPANY_OTHER = QUESTIONS[Q_COMPANY].options.length - 1; // last option: not mentioned / not working, so not balanced
+const Q_BATTERY = 4;
+const COMPANY_OTHER = QUESTIONS[Q_COMPANY].options.length - 1; // last option ("Other") could be anything, so not balanced
 
-const TEAM_COUNT = 4;
-const TEAM_COLOURS = ["#FF3B3B", "#FFC400", "#1EA7FF", "#2EDB6B"];
+const TEAM_COUNT = 5;
+const TEAM_COLOURS = ["#FF3B3B", "#FFC400", "#1EA7FF", "#2EDB6B", "#B45CFF"];
 const GENDERS = ['man', 'woman'];
 
-// Balance weights, in priority order: gender first, then company, then experience.
-// The two fun questions only nudge the result once those three are even.
-const WEIGHTS = { gender: 4, company: 2, experience: 1, experienceMean: 0.5, show: 0.1, drink: 0.1 };
+// Balance weights. Gender, department and experience carry the highest (equal) weight;
+// the three fun questions only nudge the result once those three are even.
+const WEIGHTS = { gender: 3, company: 3, experience: 3, experienceMean: 1, show: 0.1, drink: 0.1, battery: 0.1 };
+
+// Hard rule for gender, department and experience: every team holds the fair
+// share of each value, rounded down or up, never more or less. For a department
+// with 5 people or fewer that means no two people from it in the same team.
+const HARD_FIELDS = ['gender', 'company', 'experience'];
+const HARD_PENALTY = 100;
 
 // ============================================================
 // STATE (flat, in-memory)
@@ -97,10 +105,11 @@ function profileOf(pid) {
     experience: mine[Q_EXPERIENCE] === undefined ? null : mine[Q_EXPERIENCE],
     show: mine[Q_SHOW] === undefined ? null : mine[Q_SHOW],
     drink: mine[Q_DRINK] === undefined ? null : mine[Q_DRINK],
+    battery: mine[Q_BATTERY] === undefined ? null : mine[Q_BATTERY],
   };
 }
 
-const FIELDS = ['gender', 'company', 'experience', 'show', 'drink'];
+const FIELDS = ['gender', 'company', 'experience', 'show', 'drink', 'battery'];
 
 function runSplit() {
   teams = Array.from({ length: TEAM_COUNT }, (_, i) => ({
@@ -129,8 +138,25 @@ function runSplit() {
 
   // Running tallies per team, so a swap is scored in constant time instead of
   // recounting whole teams. Keeps "Make teams" fast for any room size.
-  const ideal = {};
-  FIELDS.forEach(f => { ideal[f] = {}; Object.keys(totals[f]).forEach(v => { ideal[f][v] = totals[f][v] / TEAM_COUNT; }); });
+  const ideal = {}, cap = {}, floor = {};
+  FIELDS.forEach(f => {
+    ideal[f] = {}; cap[f] = {}; floor[f] = {};
+    Object.keys(totals[f]).forEach(v => {
+      ideal[f][v] = totals[f][v] / TEAM_COUNT;
+      cap[f][v] = Math.ceil(ideal[f][v]);
+      floor[f][v] = Math.floor(ideal[f][v]);
+    });
+  });
+  // Cost of a team holding c people with value v for field f.
+  function cellCost(f, v, c) {
+    const diff = c - ideal[f][v];
+    let cost = WEIGHTS[f] * diff * diff;
+    if (HARD_FIELDS.includes(f)) {
+      const over = Math.max(0, c - cap[f][v]), under = Math.max(0, floor[f][v] - c);
+      cost += HARD_PENALTY * (over * over + under * under);
+    }
+    return cost;
+  }
 
   function buildTally(group) {
     const t = { counts: {}, eSum: 0, eN: 0 };
@@ -150,7 +176,7 @@ function runSplit() {
   function tallyCost(t) {
     let cost = 0;
     FIELDS.forEach(f => {
-      Object.keys(totals[f]).forEach(v => { const diff = (t.counts[f][v] || 0) - ideal[f][v]; cost += WEIGHTS[f] * diff * diff; });
+      Object.keys(totals[f]).forEach(v => { cost += cellCost(f, v, t.counts[f][v] || 0); });
     });
     return cost + meanCost(t.eSum, t.eN);
   }
@@ -162,8 +188,8 @@ function runSplit() {
       if (vx === vy) return;
       const step = (t, v, d) => {
         if (v === null || v === undefined) return 0;
-        const c = (t.counts[f][v] || 0) - ideal[f][v];
-        return WEIGHTS[f] * (2 * d * c + d * d);
+        const c = t.counts[f][v] || 0;
+        return cellCost(f, v, c + d) - cellCost(f, v, c);
       };
       delta += step(ta, vx, -1) + step(ta, vy, +1) + step(tb, vy, -1) + step(tb, vx, +1);
     });

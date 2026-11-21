@@ -1,28 +1,29 @@
 #!/usr/bin/env node
 /* ============================================================
-   TEAM FORMATION LOAD TEST
+   TEAM FORMATION SESSION TEST (real 24-person roster)
    ------------------------------------------------------------
-   Simulates a full session against the backend (index.js):
-   facilitator + projector + N phones join, answer the quiz,
-   drop and reconnect, teams are made (twice), lost-phone
-   recovery, manual move, remove, late joiner, reset.
-   Every event is logged with a timestamp, and the balance of
-   the 4 teams (gender, company, experience) is checked.
+   Runs the full session with the actual participants' names and
+   departments: facilitator + projector + 24 phones join, answer the
+   quiz, two phones drop and come back, 5 teams are made (twice),
+   lost-phone recovery, manual move, remove, late joiner, reset.
+   Every event is logged with a timestamp, and the balance of the
+   5 teams (gender, company, experience) is checked.
 
-   Setup (once, in any folder with this file):
+   Gender below is assumed from first names, and years of
+   experience are random: on the day people pick their own.
+
+   Setup (once, in the folder with this file):
      npm i socket.io-client
 
    Run:
-     node load-test.js                                   (localhost:3001, 23 phones)
-     node load-test.js https://your-backend.onrender.com
+     node session-test.js https://constellation-backend-4d88.onrender.com
 
    Flags:
-     --bots N     number of phones (default 23)
      --quiet      console shows INFO and above only (the log file always has everything)
-     --keep       skip the final reset, so you can look at the projector/facilitator after
-     --log FILE   log file name (default teamform-loadtest-<time>.log)
+     --keep       skip the final reset, so you can see the names on the projector/facilitator
+     --log FILE   log file name (default session-test-<time>.log)
 
-   Do NOT run this against the live server during the event:
+   Do NOT run this during the real session:
    it resets the session at the start and at the end.
    ============================================================ */
 const { io } = require('socket.io-client');
@@ -32,11 +33,10 @@ const fs = require('fs');
 const args = process.argv.slice(2);
 const URL = (args.find((a) => /^https?:\/\//.test(a)) || 'http://localhost:3001').replace(/\/$/, '');
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : d; };
-const BOTS = Math.max(8, parseInt(flag('bots', '23'), 10) || 23);
 const QUIET = args.includes('--quiet');
 const KEEP = args.includes('--keep');
 const RUN = Date.now().toString(36);
-const LOG_FILE = flag('log', `teamform-loadtest-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+const LOG_FILE = flag('log', `session-test-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
 
 // ---------- logging ----------
 const T0 = Date.now();
@@ -80,24 +80,44 @@ function waitFor(socket, event, pred = () => true, timeout = 8000) {
 }
 async function getState() { const r = await fetch(URL + '/state'); return r.json(); }
 
-// ---------- test data ----------
-const FIRST = ['Ayesha', 'Bilal', 'Sana', 'Usman', 'Hira', 'Fahad', 'Zainab', 'Omar', 'Maryam', 'Hamza', 'Noor', 'Ali', 'Kiran', 'Saad', 'Amna', 'Talha', 'Rabia', 'Danish', 'Mehwish', 'Asad', 'Iqra', 'Haris', 'Sara', 'Ahmed'];
-const LAST = ['Khan', 'Ahmed', 'Mirza', 'Tariq', 'Siddiqui', 'Ali', 'Raza', 'Farooq', 'Shah', 'Qureshi', 'Fatima', 'Hassan', 'Javed', 'Malik', 'Iqbal', 'Butt'];
-// Company index weights: some companies send many people, like the real list.
-const COMPANY_POOL = [0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 6, 7, 7, 7, 8];
+// ---------- the real roster ----------
+// [name, gender (assumed from first name), department exactly as on the phone]
+const PEOPLE = [
+  ['Muhammad Jahanzaib Imam', 'man', 'Finance'],
+  ['Aqib Uddin', 'man', 'CHSEQ'],
+  ['Syed Zaid Ali', 'man', 'Marketing & Communication'],
+  ['Fiza Shah', 'woman', 'CHSEQ'],
+  ['Tabassum Kanwal', 'woman', 'Distribution'],
+  ['Saadia Fahad', 'woman', 'People'],
+  ['Maham Khan', 'woman', 'People'],
+  ['Irtazaa Afzaal', 'man', 'Legal Affairs'],
+  ['Sana Tanzeem', 'woman', 'Distribution'],
+  ['Syed Hamza Maroof', 'man', 'Marketing & Communication'],
+  ['Muneeb Islam', 'man', 'Distribution'],
+  ['Mufaddal Ali', 'man', 'Risk Management'],
+  ['Muhammad Nabeel Khan', 'man', 'CHSEQ'],
+  ['Syeda Mariam Qadri', 'woman', 'Marketing & Communication'],
+  ['Mazhar Ahmed', 'man', 'Distribution'],
+  ['Muhammad Farrukh Shaikh', 'man', 'Supply Chain Management'],
+  ['Muhammad Hussain Dhedhi', 'man', 'Finance'],
+  ['Zarrish Marcel', 'woman', 'People'],
+  ['Usaid Javaid', 'man', 'CHSEQ'],
+  ['Sumaira Rauf', 'woman', 'Information Technology'],
+  ['Sana Mumtaz Shah', 'woman', 'People'],
+  ['Areeb', 'man', 'Finance'],
+  ['Syed Hasham Ali Shah', 'man', 'People'],
+  ['Syeda Aqsa Haider', 'woman', 'Internal Audit'],
+];
+const BOTS = PEOPLE.length;
 
 let QUESTIONS = null; // read from the server
 const bots = [];
 let roomCountEvents = 0;
 
 function makeBot(i) {
-  const gender = Math.random() < 0.35 ? 'woman' : 'man';
-  const name = `${pick(FIRST)} ${pick(LAST)}`.slice(0, 17) + ` ${i}`;
-  // 6% answer nothing, 6% answer only half, the rest answer everything.
-  const r = Math.random();
-  const answerPlan = r < 0.06 ? 'none' : r < 0.12 ? 'partial' : 'all';
+  const [name, gender] = PEOPLE[i];
   return {
-    i, id: `lt_${RUN}_${i}`, name, gender, answerPlan,
+    i, id: `st_${RUN}_${i}`, name, gender, answerPlan: 'all',
     picks: null, socket: null, finalName: null, teamId: null, confirmed: new Set(),
   };
 }
@@ -152,14 +172,14 @@ function connectPhone(bot) {
     check(r.ok && body.trim() === 'ok', `GET /health -> ${r.status} "${body.trim()}" in ${Date.now() - h0}ms`);
     const st = await getState();
     QUESTIONS = st.questions;
-    check(Array.isArray(QUESTIONS) && QUESTIONS.length === 4, `GET /state returns ${QUESTIONS && QUESTIONS.length} questions (expect 4)`);
+    check(Array.isArray(QUESTIONS) && QUESTIONS.length === 5, `GET /state returns ${QUESTIONS && QUESTIONS.length} questions (expect 5)`);
     QUESTIONS.forEach((q, i) => debug(`Q${i + 1}: ${q.text} [${q.options.length} options: ${q.options.join(' | ')}]`));
   } catch (e) {
     log('ERROR', `Server not reachable at ${URL}: ${e.message}`);
     log('ERROR', 'If this is Render, open the URL in a browser first to wake it up, then run again.');
     out.end(); process.exit(1);
   }
-  const COMPANY_OTHER = QUESTIONS[1].options.indexOf('Not mentioned here');
+  const COMPANY_OTHER = QUESTIONS[1].options.length - 1;
 
   // ---------- 2. screens ----------
   phase('2. Facilitator and projector connect, session reset');
@@ -188,12 +208,14 @@ function connectPhone(bot) {
   // ---------- 3. join ----------
   phase(`3. ${BOTS} phones connect and join`);
   for (let i = 0; i < BOTS; i++) bots.push(makeBot(i));
-  // bot 1 copies bot 0's name and gender: server must rename to "<name> (2)".
-  bots[1].name = bots[0].name; bots[1].gender = bots[0].gender;
+  // Company comes from the roster; experience and the fun answers are random.
+  let rosterOk = true;
   bots.forEach((b) => {
-    const company = COMPANY_POOL[rand(COMPANY_POOL.length)];
-    b.picks = [rand(5), company, rand(QUESTIONS[2].options.length), rand(QUESTIONS[3].options.length)];
+    const company = QUESTIONS[1].options.indexOf(PEOPLE[b.i][2]);
+    if (company < 0) { rosterOk = false; log('ERROR', `"${PEOPLE[b.i][2]}" (${b.name}) is not a department option on the server`); }
+    b.picks = [rand(5), Math.max(0, company), rand(QUESTIONS[2].options.length), rand(QUESTIONS[3].options.length), rand(QUESTIONS[4].options.length)];
   });
+  check(rosterOk, 'every roster department matches an option on the server');
 
   const BATCH = 25;
   for (let k = 0; k < bots.length; k += BATCH) {
@@ -209,9 +231,9 @@ function connectPhone(bot) {
   let e = await p;
   check(e && e.message === 'Invalid name', `blank name rejected: "${e && e.message}"`);
   p = waitFor(v.socket, 'join_error', () => true, 4000);
-  v.socket.emit('join', { id: v.id, name: 'x'.repeat(21), gender: 'man' });
+  v.socket.emit('join', { id: v.id, name: 'x'.repeat(41), gender: 'man' });
   e = await p;
-  check(e && e.message === 'Invalid name', `21-character name rejected: "${e && e.message}"`);
+  check(e && e.message === 'Invalid name', `41-character name rejected: "${e && e.message}"`);
   p = waitFor(v.socket, 'join_error', () => true, 4000);
   v.socket.emit('join', { id: v.id, name: 'No Gender', gender: 'male' });
   e = await p;
@@ -229,8 +251,7 @@ function connectPhone(bot) {
     else log('ERROR', `phone#${b.i} never got "joined"`);
   }));
   check(lat.join.length === BOTS, `${lat.join.length}/${BOTS} phones joined (${stats(lat.join)})`);
-  const dupNames = [bots[0].finalName, bots[1].finalName].sort();
-  check(dupNames[0] === bots[0].name && dupNames[1] === `${bots[0].name} (2)`, `duplicate name renamed: "${dupNames[0]}" and "${dupNames[1]}"`);
+  check(bots.every((b) => b.finalName === b.name), 'all ' + BOTS + ' full names accepted unchanged (longest: ' + Math.max(...bots.map((b) => b.name.length)) + ' characters)');
 
   // Joining again with the same id must not create a second person.
   p = waitFor(bots[3].socket, 'joined', () => true, 4000);
@@ -239,6 +260,20 @@ function connectPhone(bot) {
   await sleep(300);
   st = await getState();
   check(again && again.id === bots[3].id && Object.keys(st.participants).length === BOTS, `re-join with same id is idempotent (people=${Object.keys(st.participants).length})`);
+  // Someone types a name that is already taken: server must add " (2)".
+  const dup = io(URL, { query: { role: 'phone' }, forceNew: true, reconnection: false });
+  await waitFor(dup, 'connect', () => true, 10000);
+  const dupId = `st_${RUN}_dup`;
+  dup.emit('identify', { id: dupId });
+  p = waitFor(dup, 'joined', () => true, 5000);
+  dup.emit('join', { id: dupId, name: bots[0].name, gender: bots[0].gender });
+  const dj = await p;
+  check(dj && dj.name === `${bots[0].name} (2)`, `duplicate name renamed to "${dj && dj.name}"`);
+  p = waitFor(fac, 'participants_update', (pp) => !pp[dupId], 5000);
+  fac.emit('facilitator_delete_participant', { participantId: dupId });
+  await p; dup.disconnect();
+  st = await getState();
+  check(Object.keys(st.participants).length === BOTS, `test duplicate removed, room back to ${Object.keys(st.participants).length} people`);
   const women = bots.filter((b) => b.gender === 'woman').length;
   info(`room: ${BOTS} people, ${women} women, ${BOTS - women} men. room_count events so far: ${roomCountEvents}`);
 
@@ -285,7 +320,7 @@ function connectPhone(bot) {
 
   await Promise.all(bots.map(async (b) => {
     if (b.answerPlan === 'none') { debug(`phone#${String(b.i).padStart(3, '0')} answers nothing (simulated)`); return; }
-    const qs = b.answerPlan === 'partial' ? [0, 1] : [0, 1, 2, 3];
+    const qs = b.answerPlan === 'partial' ? [0, 1] : [0, 1, 2, 3, 4];
     for (const q of qs) {
       await sleep(400 + rand(1600)); // reading time
       await answer(b, q);
@@ -337,7 +372,7 @@ function connectPhone(bot) {
 
     st = await getState();
     const teams = st.teams;
-    check(teams.length === 4, `${label}: ${teams.length} teams (expect 4)`);
+    check(teams.length === 5, `${label}: ${teams.length} teams (expect 5)`);
     const all = teams.flatMap((t) => t.memberIds);
     check(all.length === BOTS && new Set(all).size === BOTS, `${label}: every person in exactly one team (${new Set(all).size} unique / ${all.length} slots)`);
     const sizes = teams.map((t) => t.memberIds.length);
@@ -359,7 +394,7 @@ function connectPhone(bot) {
     st.answers.forEach((a) => { (amap[a.participantId] = amap[a.participantId] || {})[a.questionIndex] = a.optionIndex; });
     const spread = (fn) => {
       const values = {};
-      teams.forEach((t, ti) => t.memberIds.forEach((id) => { const vv = fn(id); if (vv === null || vv === undefined) return; (values[vv] = values[vv] || [0, 0, 0, 0])[ti]++; }));
+      teams.forEach((t, ti) => t.memberIds.forEach((id) => { const vv = fn(id); if (vv === null || vv === undefined) return; (values[vv] = values[vv] || teams.map(() => 0))[ti]++; }));
       return values;
     };
     const gender = spread((id) => st.participants[id].gender);
@@ -376,7 +411,7 @@ function connectPhone(bot) {
       m.forEach((id) => {
         const a = amap[id] || {};
         const val = (q) => (a[q] === undefined ? '(no answer)' : QUESTIONS[q].options[a[q]]);
-        debug(`      ${st.participants[id].name.padEnd(22)} ${st.participants[id].gender.padEnd(6)} ${val(1).padEnd(30)} ${val(0).padEnd(18)} ${val(2).padEnd(24)} ${val(3)}`);
+        log('TABLE', `      ${st.participants[id].name.padEnd(26)} ${st.participants[id].gender.padEnd(6)} ${val(1).padEnd(30)} ${val(0).padEnd(18)} ${val(2).padEnd(24)} ${val(3).padEnd(18)} ${val(4)}`);
       });
     });
 
@@ -384,13 +419,16 @@ function connectPhone(bot) {
       Object.entries(table).forEach(([k, counts]) => {
         const gap = Math.max(...counts) - Math.min(...counts);
         const msg = `${label}: ${name} "${labelOf(k)}" per team [${counts.join(', ')}] gap ${gap}`;
-        if (gap <= 1) check(true, msg);
-        else check(gap <= 2, msg + ' (gap 2 is acceptable when other factors compete)', { warnOnly: gap === 2 });
+        check(gap <= 1, msg);
       });
     }
     judge('gender', gender, (k) => k);
     judge('company', company, (k) => QUESTIONS[1].options[k]);
     judge('experience', exp, (k) => QUESTIONS[0].options[k]);
+    Object.entries(company).forEach(([k, counts]) => {
+      const capK = Math.ceil(counts.reduce((a, b) => a + b, 0) / teams.length);
+      check(Math.max(...counts) <= capK, `${label}: no team has more than ${capK} from "${QUESTIONS[1].options[k]}"`);
+    });
     return st;
   }
 
@@ -420,7 +458,7 @@ function connectPhone(bot) {
   await sleep(600);
   const fresh = io(URL, { query: { role: 'phone' }, forceNew: true, reconnection: false });
   await waitFor(fresh, 'connect', () => true, 10000);
-  const newId = `lt_${RUN}_lost`;
+  const newId = `st_${RUN}_lost`;
   fresh.emit('identify', { id: newId });
   p = waitFor(fresh, 'joined', () => true, 5000);
   fresh.emit('join', { id: newId, name: lost.finalName, gender: lost.gender });
@@ -431,15 +469,15 @@ function connectPhone(bot) {
   check(Object.keys(st.participants).length === BOTS, `no duplicate person created (people=${Object.keys(st.participants).length})`);
 
   // Two people with the same base name, both online: must NOT merge.
-  phase('10. Same name, both online: new person is created, not merged');
+  phase('10. Same name, different gender: new person is created, not merged');
   const tw = io(URL, { query: { role: 'phone' }, forceNew: true, reconnection: false });
   await waitFor(tw, 'connect', () => true, 10000);
-  const twId = `lt_${RUN}_twin`;
+  const twId = `st_${RUN}_twin`;
   tw.emit('identify', { id: twId });
   p = waitFor(tw, 'joined', () => true, 5000);
-  tw.emit('join', { id: twId, name: bots[0].name, gender: bots[0].gender });
+  tw.emit('join', { id: twId, name: bots[0].name, gender: bots[0].gender === 'woman' ? 'man' : 'woman' });
   j = await p;
-  check(j && j.id === twId && j.id !== bots[0].id && j.id !== bots[1].id, `third "${bots[0].name}" became new person "${j && j.name}" with no team (teamId=${j && j.teamId})`);
+  check(j && j.id === twId && j.id !== bots[0].id, `another "${bots[0].name}" (other gender) became new person "${j && j.name}" with no team (teamId=${j && j.teamId})`);
 
   // ---------- 11. facilitator tools ----------
   phase('11. Facilitator: move and remove');
@@ -464,7 +502,7 @@ function connectPhone(bot) {
   phase('12. Late joiner after teams are formed');
   const late = io(URL, { query: { role: 'phone' }, forceNew: true, reconnection: false });
   await waitFor(late, 'connect', () => true, 10000);
-  const lateId = `lt_${RUN}_late`;
+  const lateId = `st_${RUN}_late`;
   late.emit('identify', { id: lateId });
   p = waitFor(late, 'joined', () => true, 5000);
   late.emit('join', { id: lateId, name: 'Late Comer', gender: 'woman' });

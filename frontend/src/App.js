@@ -639,10 +639,10 @@ function truncateToWidth(ctx, text, maxWidth) {
   return t + '…';
 }
 
-// Grid cell for team block i: one row of up to 4 tall columns (4 teams),
-// more rows only if the team count ever goes above 4.
-function teamBlockRect(i, w, h, count = 4) {
-  const cols = Math.max(1, Math.min(4, count));
+// Grid cell for team block i: one row of up to 5 tall columns (5 teams),
+// more rows only if the team count ever goes above 5.
+function teamBlockRect(i, w, h, count = 5) {
+  const cols = Math.max(1, Math.min(5, count));
   const rows = Math.max(1, Math.ceil(count / cols));
   const topOffset = TOP_BAR_HEIGHT + 14;
   const margin = Math.max(16, w * 0.012);
@@ -1235,7 +1235,7 @@ function FacilitatorView() {
     if (teams.length === 0) { socket.emit('facilitator_make_teams'); return; }
     setConfirm({
       title: 'Make the teams again?',
-      message: 'This makes a new balanced split of 4 teams. Everyone may move to a different team, and any manual moves will be lost.',
+      message: 'This makes a new balanced split of 5 teams. Everyone may move to a different team, and any manual moves will be lost.',
       confirmLabel: 'Make new teams',
       onConfirm: () => socket.emit('facilitator_make_teams'),
     });
@@ -1298,7 +1298,7 @@ function FacilitatorView() {
           </div>
           <div className="lc-stat-card">
             <div className="lc-stat-label">Teams</div>
-            <div className="lc-stat-value">4</div>
+            <div className="lc-stat-value">5</div>
           </div>
         </div>
 
@@ -1306,7 +1306,7 @@ function FacilitatorView() {
           {sessionState === 'idle' && (
             <>
               <p style={{ margin: '0 0 18px', fontSize: 16, color: 'var(--ink-dim)' }}>
-                Once you start, every joined phone gets all {questions.length || 4} questions at once. People answer at their own pace, so there is no need to push each question.
+                Once you start, every joined phone gets all {questions.length || 5} questions at once. People answer at their own pace, so there is no need to push each question.
               </p>
               <button className="lc-btn lc-btn-primary" onClick={startQuiz} style={{ width: '100%' }}>Start the quiz</button>
             </>
@@ -1334,7 +1334,7 @@ function FacilitatorView() {
           <div className="lc-btn-row" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <button className="lc-btn lc-btn-danger" onClick={makeTeams} disabled={sessionState === 'idle' || joinedCount === 0}
               style={{ flex: '2 1 220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-              <Icon name={teams.length ? 'shuffle' : 'users'} size={18} /> {teams.length ? 'Make teams again' : 'Make 4 teams'}
+              <Icon name={teams.length ? 'shuffle' : 'users'} size={18} /> {teams.length ? 'Make teams again' : 'Make 5 teams'}
             </button>
             <button className="lc-btn lc-btn-outline" onClick={resetAll}>Reset to idle</button>
           </div>
