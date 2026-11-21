@@ -18,7 +18,7 @@ const io = new Server(server, {
 const QUESTIONS = [
   { text: "How many years of work experience do you have?", options: ["Less than 2 years", "2 to 5 years", "6 to 10 years", "11 to 15 years", "More than 15 years"] },
   { text: "Which department are you from?", options: ["People", "CHSEQ", "Distribution", "Finance", "Marketing & Communication", "Legal Affairs", "Risk Management", "Supply Chain Management", "Information Technology", "Internal Audit", "Other"] },
-  { text: "What's your favourite show?", options: ["Stranger Things", "Brooklyn Nine-Nine", "Sacred Games", "Friends", "Suits", "The Office", "No, I don't watch shows"] },
+  { text: "Your favourite desi food?", options: ["Biryani", "Nihari", "Karahi", "Haleem", "BBQ / Tikka", "Chapli Kabab", "Daal Chawal", "Other", "No, I don't like desi food"] },
   { text: "Your go-to drink?", options: ["Chai", "Coffee", "Soft drink", "Just water", "Energy drink", "Green tea / Kahwa"] },
   { text: "What's your phone battery right now?", options: ["Below 10%", "10% to 25%", "26% to 40%", "41% to 60%", "61% to 80%", "81% to 99%", "100%"] },
 ];
